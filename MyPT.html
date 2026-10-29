@@ -1,0 +1,2743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>저녁 루틴 & 수면 원형 스케줄러</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            apple: {
+              surface: '#161618',
+              card: '#1c1c1e',
+              cardHover: '#252528',
+              elevated: '#2c2c2e',
+              green: '#30d158',
+              accent: '#fa114f',
+              blue: '#0a84ff',
+              cyan: '#64d2ff',
+              orange: '#ff9f0a',
+              red: '#ff453a',
+              label: '#86868b',
+              subhead: '#98989d'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background-color: #000000;
+      color: #f5f5f7;
+      letter-spacing: -0.015em;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    /* Hide native number spin buttons */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #2c2c2e;
+      cursor: pointer;
+      height: 4px;
+      border-radius: 999px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    /* Smooth Bézier transition for Unrolling Horizontal Bar */
+    #unfoldedLinearBarContainer {
+      transition: max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease, transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      transform-origin: top center;
+    }
+    #unfoldedLinearBarContainer.bar-collapsed {
+      max-height: 0px;
+      opacity: 0;
+      transform: scaleY(0.85);
+      pointer-events: none;
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+      overflow: hidden;
+    }
+    #unfoldedLinearBarContainer.bar-expanded {
+      max-height: 280px;
+      opacity: 1;
+      transform: scaleY(1);
+      pointer-events: auto;
+      overflow: visible;
+    }
+    /* Sliding Indicator Pin Pointer */
+    #barIndicatorPin {
+      transition: left 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-top-color 0.3s ease;
+    }
+  </style>
+</head>
+<body class="bg-black text-[#f5f5f7] min-h-screen selection:bg-apple-blue selection:text-white pb-16">
+
+  <!-- Apple Health Style Minimalist Header (Refined Desktop & Mobile Layout) -->
+  <header class="bg-black/90 backdrop-blur-xl sticky top-0 z-40 border-b border-[#1c1c1e]">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Row 1: Title, Subtitle & Sticky Toggle Pin -->
+      <div class="py-3 flex items-center justify-between">
+        <div class="flex items-baseline gap-3">
+          <h1 class="text-base sm:text-xl font-bold tracking-tight text-white">건강 & 루틴</h1>
+          <span class="text-xs sm:text-sm font-medium text-apple-label">91.1kg ➔ 80.8kg</span>
+        </div>
+        <button id="toggleStickySummaryBtn" onclick="toggleStickySummary()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-xs sm:text-sm font-semibold transition">
+          <span id="stickyPinIcon" class="text-apple-cyan">📌</span>
+          <span id="stickyPinText" class="text-apple-cyan">고정</span>
+        </button>
+      </div>
+
+      <!-- Row 2: Compact Segmented Tab Bar (Apple Pill Style, Not Stretched) -->
+      <div class="pb-3 overflow-x-auto no-scrollbar">
+        <nav class="inline-flex items-center bg-[#161618] p-1 rounded-xl gap-1 text-xs sm:text-sm font-semibold border border-apple-card/60" role="tablist">
+          <button id="navTab1" onclick="switchTab(1)" class="px-4 py-2 rounded-lg transition text-white bg-[#2c2c2e] font-semibold whitespace-nowrap shadow-sm">
+            저녁 일정
+          </button>
+          <button id="navTab2" onclick="switchTab(2)" class="px-4 py-2 rounded-lg transition text-apple-label hover:text-white whitespace-nowrap">
+            운동 프로그램
+          </button>
+          <button id="navTab3" onclick="switchTab(3)" class="px-4 py-2 rounded-lg transition text-apple-label hover:text-white whitespace-nowrap">
+            식단 & 재고
+          </button>
+          <button id="navTab4" onclick="switchTab(4)" class="px-4 py-2 rounded-lg transition text-apple-label hover:text-white whitespace-nowrap">
+            11주 목표
+          </button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container (Expanded to max-w-7xl for PC Balance) -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 space-y-6">
+
+    <!-- Top Key Metrics Wrapper with Sticky & Mobile Slim Support -->
+    <div id="topSummaryStickyContainer" class="sticky top-[96px] z-30 bg-black/95 backdrop-blur-xl py-2.5 transition-all duration-200 border-b border-[#1c1c1e]">
+      <!-- Desktop & Tablet View (3 cards) -->
+      <section id="topDynamicSummarySection" class="hidden md:grid md:grid-cols-3 gap-4"></section>
+      <!-- Mobile Slim Compact Bar (Single line, strictly under 40px height) -->
+      <div id="mobileSlimSummaryBar" class="flex md:hidden px-3.5 py-2 bg-apple-surface/90 border border-apple-card rounded-xl items-center justify-between text-[11px] font-medium text-white shadow-md"></div>
+    </div>
+
+    <!-- ================= TAB 1: 저녁 일정 & 스케줄러 ================= -->
+    <div id="tabContent1" class="tab-content active space-y-6">
+      
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left: Activity Ring Style Circular Dial (7 cols) -->
+        <div class="lg:col-span-7 bg-apple-surface rounded-2xl p-5 sm:p-7 flex flex-col items-center relative">
+          
+          <div class="w-full flex items-center justify-between mb-2">
+            <div>
+              <h2 class="text-sm sm:text-base font-bold text-white tracking-tight">저녁 타임라인 다이얼</h2>
+              <p class="text-xs sm:text-sm text-apple-label mt-0.5">각 블록을 탭하여 세부 지침 확인</p>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <button id="toggle13hBarBtn" onclick="toggle13hScheduleBar()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-xs sm:text-sm font-semibold transition text-white">
+                <span id="toggle13hIcon">▲</span>
+                <span id="toggle13hText">타임라인 접기</span>
+              </button>
+              <button onclick="resetToDefault()" class="text-xs sm:text-sm px-2.5 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-label hover:text-white transition font-medium">
+                재설정
+              </button>
+            </div>
+          </div>
+
+          <!-- Circular Chart SVG -->
+          <div class="relative w-full max-w-[310px] sm:max-w-[370px] aspect-square flex items-center justify-center my-3">
+            <svg id="routineSvg" viewBox="0 0 460 460" class="w-full h-full select-none overflow-visible">
+              <!-- Background Outer Track -->
+              <circle cx="230" cy="230" r="165" fill="none" stroke="#222225" stroke-width="26" />
+              
+              <!-- Fixed Outer Compass Ticks & Labels (Never Rotates, Stays Static) -->
+              <g id="chartFixedTicksGroup"></g>
+
+              <!-- Permanent Static 24-Hour Track (No Dial Rotation) -->
+              <g id="dialMasterTrackGroup">
+                <!-- Slices Container -->
+                <g id="chartSlicesGroup"></g>
+              </g>
+
+              <!-- Center Hollow Face -->
+              <circle cx="230" cy="230" r="148" fill="#161618" />
+            </svg>
+
+            <!-- Floating Hover Tooltip for Sectors -->
+            <div id="dialFloatingTooltip" class="absolute pointer-events-none opacity-0 transition-opacity duration-150 px-3 py-1.5 rounded-xl bg-black/90 border border-apple-card text-center shadow-xl z-20 backdrop-blur-md">
+              <span id="tooltipSectorTitle" class="text-xs font-bold text-white block"></span>
+              <span id="tooltipSectorTime" class="text-[11px] font-mono text-apple-cyan block"></span>
+            </div>
+
+            <!-- Center Metric Readout -->
+            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4">
+              <span id="centerCategory" class="text-xs font-semibold uppercase tracking-wider text-apple-label">선택된 구간</span>
+              <span id="centerTitle" class="text-xl sm:text-2xl font-bold text-white tracking-tight mt-0.5">100분 코스</span>
+              <span id="centerTime" class="text-xs sm:text-base font-medium text-apple-cyan mt-1">18:00 ~ 19:40</span>
+              <div id="centerBadge" class="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-apple-green/10 text-apple-green">
+                1시간 40분 진행
+              </div>
+            </div>
+          </div>
+
+          <!-- Unrolled 13-Hour Linear Bar (Toggleable beneath Dial) -->
+          <div id="unfoldedLinearBarContainer" class="w-full bg-apple-card rounded-2xl p-4 sm:p-5 border border-apple-elevated/60 shadow-lg bar-expanded my-2">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-apple-cyan animate-pulse"></span>
+                <span id="linearBarHeaderTitle" class="text-xs sm:text-sm font-bold text-white tracking-tight">저녁 ~ 수면 타임라인</span>
+              </div>
+              <span id="linearBarTotalDurationBadge" class="text-xs text-apple-cyan font-mono font-semibold"></span>
+            </div>
+
+            <!-- Relative Wrapper for Gauge Bar + Sliding Caret Pin -->
+            <div class="relative w-full pt-1 pb-3">
+              <!-- Multi-segment Pure Color Gauge Bar (No internal text) -->
+              <div id="unfoldedSegmentBar" class="w-full h-7 sm:h-8 bg-apple-surface rounded-xl flex overflow-hidden p-0.5 gap-1 border border-apple-elevated shadow-inner"></div>
+
+              <!-- Sliding Caret Indicator Pin (Points directly to detail card below) -->
+              <div id="barIndicatorPin" class="absolute -bottom-1 w-0 h-0 border-x-[7px] border-x-transparent border-t-[8px] border-t-apple-accent -translate-x-1/2 pointer-events-none filter drop-shadow"></div>
+            </div>
+
+            <!-- Major Milestone Scale Track with Dynamic Non-overlapping Labels -->
+            <div id="unfoldedTimeScale" class="relative w-full h-8 mt-1 select-none"></div>
+          </div>
+
+          <!-- Interactive Guide Detail Card (Directly linked to Bar via Color & Pointer) -->
+          <div id="selectedBlockDetailCard" class="w-full mt-2 p-4 bg-apple-card rounded-xl flex items-start gap-3.5 transition border-l-4 border-l-apple-accent shadow-md">
+            <div id="detailDot" class="w-3 h-3 rounded-full bg-apple-accent mt-1 flex-shrink-0"></div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between">
+                <h4 id="detailTitle" class="text-sm font-bold text-white">웨이트 트레이닝 + 유산소</h4>
+                <span id="detailDuration" class="text-xs text-apple-label font-medium">1시간 40분 소요 (18:00 ~ 19:40)</span>
+              </div>
+              <p id="detailInstruction" class="text-xs sm:text-sm text-apple-subhead mt-1 leading-relaxed min-h-[42px]">
+                웨이트 45분 (RPE 8 준수, 대근육 위주) + 유산소 40분 (Zone 2 또는 HIIT) 결합 프로토콜입니다.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Time Tuning Sliders (5 cols) -->
+        <div class="lg:col-span-5 space-y-4">
+          
+          <!-- Course Presets -->
+          <div class="bg-apple-surface rounded-2xl p-5 sm:p-6 space-y-3.5">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-white tracking-tight">운동 코스 프리셋</h3>
+                <p class="text-xs sm:text-sm text-apple-label mt-0.5">상황별 총 운동 시간 즉시 설정</p>
+              </div>
+              <span id="currentCourseTag" class="text-xs font-semibold text-apple-green bg-apple-green/10 px-2.5 py-1 rounded-md">100분 표준</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5 pt-1">
+              <button onclick="applyWorkoutPreset(60)" id="presetBtn60" class="preset-btn text-left p-3 rounded-xl bg-apple-card hover:bg-apple-cardHover transition">
+                <div class="flex justify-between items-baseline">
+                  <span class="text-xs sm:text-sm font-bold text-white">60분</span>
+                  <span class="text-[11px] text-apple-label">야근/단축</span>
+                </div>
+                <p class="text-xs text-apple-label mt-1">웨이트 35 + 유산소 20</p>
+              </button>
+              <button onclick="applyWorkoutPreset(80)" id="presetBtn80" class="preset-btn text-left p-3 rounded-xl bg-apple-card hover:bg-apple-cardHover transition">
+                <div class="flex justify-between items-baseline">
+                  <span class="text-xs sm:text-sm font-bold text-white">80분</span>
+                  <span class="text-[11px] text-apple-label">평일 밸런스</span>
+                </div>
+                <p class="text-xs text-apple-label mt-1">웨이트 45 + 유산소 25</p>
+              </button>
+              <button onclick="applyWorkoutPreset(100)" id="presetBtn100" class="preset-btn text-left p-3 rounded-xl bg-apple-elevated transition border border-apple-green/30">
+                <div class="flex justify-between items-baseline">
+                  <span class="text-xs sm:text-sm font-bold text-white">100분</span>
+                  <span class="text-[11px] text-apple-green font-semibold bg-apple-green/10 px-1.5 py-0.5 rounded">권장</span>
+                </div>
+                <p class="text-xs text-apple-label mt-1">웨이트 45 + 유산소 40</p>
+              </button>
+              <button onclick="applyWorkoutPreset(120)" id="presetBtn120" class="preset-btn text-left p-3 rounded-xl bg-apple-card hover:bg-apple-cardHover transition">
+                <div class="flex justify-between items-baseline">
+                  <span class="text-xs sm:text-sm font-bold text-white">120분</span>
+                  <span class="text-[11px] text-apple-label">주말 여유</span>
+                </div>
+                <p class="text-xs text-apple-label mt-1">웨이트 60 + 유산소 45</p>
+              </button>
+            </div>
+          </div>
+
+          <!-- Precision Adjusters -->
+          <div class="bg-apple-surface rounded-2xl p-5 sm:p-6 space-y-4">
+            <h3 class="text-sm font-bold text-white tracking-tight">세부 시간 미세조정</h3>
+
+            <!-- 1. 퇴근 시각 -->
+            <div>
+              <div class="flex justify-between text-xs sm:text-sm mb-1.5">
+                <span class="text-apple-label font-medium">1. 퇴근 시각</span>
+                <span id="leaveWorkLabel" class="font-bold text-white font-mono">17:30</span>
+              </div>
+              <input type="range" id="leaveWorkSlider" min="1020" max="1140" step="10" value="1050" class="w-full" oninput="onTimeSliderChange()">
+            </div>
+
+            <!-- 2. 운동 시작 -->
+            <div>
+              <div class="flex justify-between text-xs sm:text-sm mb-1.5">
+                <span class="text-apple-label font-medium">2. 운동 시작</span>
+                <span id="workoutStartLabel" class="font-bold text-white font-mono">18:00</span>
+              </div>
+              <input type="range" id="workoutStartSlider" min="1050" max="1170" step="5" value="1080" class="w-full" oninput="onTimeSliderChange()">
+            </div>
+
+            <!-- 3. 총 운동 시간 -->
+            <div>
+              <div class="flex justify-between text-xs sm:text-sm mb-1.5">
+                <span class="text-apple-label font-medium">3. 운동 시간</span>
+                <span id="workoutDurLabel" class="font-bold text-apple-green font-mono">100분</span>
+              </div>
+              <input type="range" id="workoutDurSlider" min="50" max="140" step="5" value="100" class="w-full" oninput="onTimeSliderChange()">
+            </div>
+
+            <!-- 4. 저녁 식사 시작 -->
+            <div>
+              <div class="flex justify-between text-xs sm:text-sm mb-1.5">
+                <span class="text-apple-label font-medium">4. 저녁 식사 시작</span>
+                <span id="dinnerStartLabel" class="font-bold text-white font-mono">20:10</span>
+              </div>
+              <input type="range" id="dinnerStartSlider" min="1170" max="1290" step="5" value="1210" class="w-full" oninput="onTimeSliderChange()">
+            </div>
+
+            <!-- 5. 취침 시각 -->
+            <div>
+              <div class="flex justify-between text-xs sm:text-sm mb-1.5">
+                <span class="text-apple-label font-medium">5. 취침 시각</span>
+                <span id="bedtimeLabel" class="font-bold text-white font-mono">23:00</span>
+              </div>
+              <input type="range" id="bedtimeSlider" min="1350" max="1500" step="10" value="1380" class="w-full" oninput="onTimeSliderChange()">
+            </div>
+
+            <!-- 6. 기상 시각 (조절 가능 슬라이더로 전환) -->
+            <div>
+              <div class="flex justify-between text-xs sm:text-sm mb-1.5">
+                <span class="text-apple-label font-medium">6. 기상 시각</span>
+                <span id="wakeTimeLabel" class="font-bold text-apple-cyan font-mono">07:00</span>
+              </div>
+              <input type="range" id="wakeTimeSlider" min="300" max="570" step="10" value="420" class="w-full" oninput="onTimeSliderChange()">
+            </div>
+
+            <!-- 7. 총 수면 시간 및 회복 주기 (동적 계산 읽기전용 섹터) -->
+            <div class="p-3 bg-apple-card rounded-xl border border-apple-elevated/40">
+              <div class="flex justify-between items-center text-xs sm:text-sm">
+                <span class="text-apple-label font-medium">7. 총 수면 시간</span>
+                <span id="sleepSectorLabel" class="font-bold text-apple-cyan font-mono">8시간 00분</span>
+              </div>
+              <div class="flex justify-between items-center text-[11px] text-apple-subhead mt-1">
+                <span id="sleepCycleDesc">90분 수면 주기 약 5.3회 충족</span>
+                <span id="wakeStatusBadge" class="text-apple-green font-semibold">최적 수면</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Action Protocol Cards (Responsive: Desktop Table / Mobile Accordion Cards) -->
+      <div class="bg-apple-surface rounded-2xl p-5 sm:p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm sm:text-base font-bold text-white tracking-tight">타임라인 행동 가이드</h3>
+            <p class="text-xs sm:text-sm text-apple-label mt-0.5">구간별 핵심 행동 수칙 및 생체 리듬 최적화 지침</p>
+          </div>
+          <span class="text-xs font-medium text-apple-label">6개 블록</span>
+        </div>
+
+        <!-- Desktop Table View -->
+        <div class="hidden md:block overflow-x-auto">
+          <table class="w-full text-left text-xs sm:text-sm">
+            <thead>
+              <tr class="text-apple-label border-b border-apple-card">
+                <th class="py-3 px-3.5 font-semibold w-[170px]">구간</th>
+                <th class="py-3 px-3 font-semibold min-w-[125px] whitespace-nowrap">시간대</th>
+                <th class="py-3 px-3 font-semibold min-w-[95px] whitespace-nowrap">소요</th>
+                <th class="py-3 px-4 font-semibold">실행 지침</th>
+              </tr>
+            </thead>
+            <tbody id="timelineTableBody" class="divide-y divide-apple-card/60"></tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Accordion Cards View -->
+        <div id="timelineMobileAccordion" class="block md:hidden space-y-2"></div>
+      </div>
+
+    </div>
+
+    <!-- ================= TAB 2: 운동 프로그램 & 타이머 ================= -->
+    <div id="tabContent2" class="tab-content space-y-6">
+      
+      <!-- Day Switcher & Volume -->
+      <div class="bg-apple-surface rounded-2xl p-5 sm:p-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h3 class="text-sm sm:text-base font-bold text-white tracking-tight">주간 5일 분할 운동</h3>
+            <p class="text-xs sm:text-sm text-apple-label mt-0.5">대근육 복합 다관절 리프팅 & Zone 2/HIIT 결합</p>
+          </div>
+
+          <!-- Day Switcher -->
+          <div class="flex bg-apple-card p-1 rounded-xl gap-1 text-xs sm:text-sm font-medium">
+            <button onclick="switchWorkoutDay('mon')" id="dayBtn_mon" class="px-3 py-1.5 rounded-lg bg-apple-elevated text-white font-semibold">월 (하체)</button>
+            <button onclick="switchWorkoutDay('tue')" id="dayBtn_tue" class="px-3 py-1.5 rounded-lg text-apple-label hover:text-white">화 (상체밀기)</button>
+            <button onclick="switchWorkoutDay('wed')" id="dayBtn_wed" class="px-3 py-1.5 rounded-lg text-apple-label hover:text-white">수 (등/당기기)</button>
+            <button onclick="switchWorkoutDay('thu')" id="dayBtn_thu" class="px-3 py-1.5 rounded-lg text-apple-label hover:text-white">목 (하체파워)</button>
+            <button onclick="switchWorkoutDay('fri')" id="dayBtn_fri" class="px-3 py-1.5 rounded-lg text-apple-label hover:text-white">금 (상체볼륨)</button>
+          </div>
+        </div>
+
+        <!-- Active Workout Plan -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between border-b border-apple-card pb-3">
+            <div>
+              <span id="workoutDayTitle" class="text-base sm:text-lg font-bold text-white tracking-tight">월요일: 하체 근력 & 대사 인터벌</span>
+              <p id="workoutDayFocus" class="text-xs sm:text-sm text-apple-label mt-0.5">글리코겐 완전 고갈 ➔ 지방 대사 스위치 온</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="workoutCompletedBadge" class="text-xs sm:text-sm font-semibold px-3 py-1.5 rounded-lg bg-apple-card text-apple-label">
+                0 / 16 세트 완료
+              </span>
+              <button onclick="resetDayWorkouts()" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-label hover:text-white transition font-medium">
+                초기화
+              </button>
+            </div>
+          </div>
+
+          <!-- Exercises List -->
+          <div id="exerciseListContainer" class="space-y-3"></div>
+
+          <!-- Cardio Protocol Box -->
+          <div class="bg-apple-card p-4 sm:p-5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-apple-cyan uppercase tracking-wider">유산소 프로토콜</span>
+                <span id="cardioTypeTag" class="text-xs font-semibold px-2 py-0.5 rounded bg-apple-surface text-apple-label">HIIT 러닝 25분</span>
+              </div>
+              <p id="cardioInstruction" class="text-xs sm:text-sm text-apple-subhead leading-relaxed">
+                속도 11.5km/h (1분 질주) + 속도 5.5km/h (1.5분 회복) ➔ 8세트 반복 (타깃 심박수 165~178 bpm)
+              </p>
+            </div>
+            <button onclick="toggleCardioComplete()" id="cardioCompleteBtn" class="px-4 py-2 rounded-xl bg-apple-elevated hover:bg-apple-cardHover text-xs sm:text-sm font-semibold text-white transition flex-shrink-0">
+              유산소 완료 체크
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Rest Timer Widget -->
+      <div class="bg-apple-surface rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h4 class="text-sm sm:text-base font-bold text-white tracking-tight">세트 간 휴식 타이머</h4>
+          <p class="text-xs sm:text-sm text-apple-label mt-0.5">근력 회복 및 심박수 안정화 카운트다운</p>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <div class="text-3xl sm:text-4xl font-bold tracking-tight text-white font-mono" id="restTimerDisplay">00:00</div>
+          <div class="flex items-center gap-2">
+            <button onclick="startRestTimer(60)" class="px-3.5 py-2 rounded-lg bg-apple-card hover:bg-apple-elevated text-xs sm:text-sm font-semibold text-white transition">60초</button>
+            <button onclick="startRestTimer(45)" class="px-3.5 py-2 rounded-lg bg-apple-card hover:bg-apple-elevated text-xs sm:text-sm font-semibold text-white transition">45초</button>
+            <button onclick="resetRestTimer()" class="px-3 py-2 rounded-lg bg-apple-card hover:bg-apple-elevated text-xs sm:text-sm font-semibold text-apple-label transition">정지</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= TAB 3: 식단 & 재고 관리 ================= -->
+    <div id="tabContent3" class="tab-content space-y-6">
+      
+      <!-- Upper 4-Card Nutrition & Inventory Bar -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+          <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">일일 칼로리</span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="dietHeaderCalorie" class="text-2xl sm:text-3xl font-bold text-white">0</span>
+            <span class="text-xs sm:text-sm text-apple-label">/ 1,700 kcal</span>
+          </div>
+          <div class="w-full bg-apple-card h-2 rounded-full mt-2.5 overflow-hidden">
+            <div id="dietCalorieProgress" class="bg-apple-green h-full rounded-full transition-all" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">단백질 섭취</span>
+            <span class="text-[11px] text-apple-green font-semibold bg-apple-green/10 px-1.5 py-0.5 rounded">방어선 130g</span>
+          </div>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="dietHeaderProtein" class="text-2xl sm:text-3xl font-bold text-white">0</span>
+            <span class="text-xs sm:text-sm text-apple-label">/ 160 g</span>
+          </div>
+          <div class="w-full bg-apple-card h-2 rounded-full mt-2.5 overflow-hidden">
+            <div id="dietProteinProgress" class="bg-apple-green h-full rounded-full transition-all" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+          <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">식단 달성도</span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="dietHeaderRate" class="text-2xl sm:text-3xl font-bold text-white">0%</span>
+            <span class="text-xs sm:text-sm text-apple-label">0/5 항목</span>
+          </div>
+          <p class="text-xs text-apple-label mt-1">근손실 0% 방어 진행</p>
+        </div>
+
+        <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+          <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">식단 비축 현황</span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="dietHeaderStockStatus" class="text-lg sm:text-xl font-bold text-apple-green">비축 여유</span>
+          </div>
+          <p id="dietHeaderStockDesc" class="text-xs text-apple-label mt-1">재발주 필요 품목 없음</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left: Daily Meals Checklist (7 cols) -->
+        <div class="lg:col-span-7 bg-apple-surface rounded-2xl p-5 sm:p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm sm:text-base font-bold text-white tracking-tight">일일 식단 체크리스트</h3>
+              <p class="text-xs sm:text-sm text-apple-label mt-0.5">체크 시 해당 품목의 냉장고 재고가 실시간 연동 차감됩니다</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="resetDietChecklist()" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-label hover:text-white transition font-medium">
+                초기화
+              </button>
+            </div>
+          </div>
+
+          <div id="dietChecklistContainer" class="space-y-3"></div>
+
+          <!-- Microwave Dinner Selection Cards -->
+          <div class="pt-3">
+            <div class="flex items-center justify-between mb-2.5">
+              <span class="text-xs sm:text-sm font-bold text-white tracking-tight">저녁 간편식 선택 (전자레인지 3분 30초)</span>
+              <span class="text-xs text-apple-label">1세트 선택</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <!-- Set A -->
+              <div onclick="selectDinnerSet('A')" id="dinnerSetCardA" class="p-3.5 rounded-xl bg-apple-elevated border border-apple-green/40 cursor-pointer transition">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs sm:text-sm font-bold text-white">세트 A</span>
+                  <span id="stockTagA" class="text-xs font-semibold px-2 py-0.5 rounded bg-apple-card text-apple-label">잔여 12회</span>
+                </div>
+                <div class="text-xs text-apple-label mt-1.5 space-y-0.5">
+                  <p>볶음밥 1팩 + 닭가슴살 1팩</p>
+                  <p class="text-white font-medium">510 kcal / 단백질 47g</p>
+                </div>
+              </div>
+
+              <!-- Set B -->
+              <div onclick="selectDinnerSet('B')" id="dinnerSetCardB" class="p-3.5 rounded-xl bg-apple-card hover:bg-apple-cardHover border border-transparent cursor-pointer transition">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs sm:text-sm font-bold text-white">세트 B</span>
+                  <span id="stockTagB" class="text-xs font-semibold px-2 py-0.5 rounded bg-apple-card text-apple-label">잔여 8회</span>
+                </div>
+                <div class="text-xs text-apple-label mt-1.5 space-y-0.5">
+                  <p>더담은 도시락 1팩 + 감동란 1알</p>
+                  <p class="text-white font-medium">470 kcal / 단백질 37g</p>
+                </div>
+              </div>
+
+              <!-- Set C -->
+              <div onclick="selectDinnerSet('C')" id="dinnerSetCardC" class="p-3.5 rounded-xl bg-apple-card hover:bg-apple-cardHover border border-transparent cursor-pointer transition">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs sm:text-sm font-bold text-white">세트 C</span>
+                  <span id="stockTagC" class="text-xs font-semibold px-2 py-0.5 rounded bg-apple-card text-apple-label">잔여 6회</span>
+                </div>
+                <div class="text-xs text-apple-label mt-1.5 space-y-0.5">
+                  <p>햇반(소) + 닭가슴살 + 감동란 2알</p>
+                  <p class="text-white font-medium">540 kcal / 단백질 52g</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Inventory Management (5 cols) -->
+        <div class="lg:col-span-5 bg-apple-surface rounded-2xl p-5 sm:p-6 space-y-4">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm sm:text-base font-bold text-white tracking-tight">비축 식단 및 보충제 재고</h3>
+              <p class="text-xs sm:text-sm text-apple-label mt-0.5">품목별 영양 및 재고 통합 관리</p>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <button onclick="toggleInventoryBatchMode()" id="invBatchModeBtn" class="text-xs px-2.5 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-label hover:text-white transition font-medium whitespace-nowrap">
+                선택 관리
+              </button>
+              <button onclick="resetInventoryToDefault()" title="초기 기본 품목 복원" class="text-xs px-2 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-label hover:text-white transition">
+                ↺
+              </button>
+              <button onclick="toggleAddItemForm()" id="inventoryAddToggleBtn" class="text-xs px-3 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-cyan transition font-semibold whitespace-nowrap">
+                + 추가
+              </button>
+            </div>
+          </div>
+
+          <!-- Batch Action Bar (Visible when batch mode is active) -->
+          <div id="inventoryBatchActionBar" class="hidden p-3 bg-apple-card rounded-xl border border-apple-elevated/70 flex items-center justify-between gap-2 transition">
+            <div class="flex items-center gap-2">
+              <input type="checkbox" id="selectAllInvCheckbox" onchange="toggleSelectAllInventory(this.checked)" class="w-4 h-4 rounded bg-apple-surface border-apple-elevated text-apple-cyan focus:ring-0 cursor-pointer">
+              <label for="selectAllInvCheckbox" class="text-xs text-apple-subhead cursor-pointer select-none">전체</label>
+              <span id="selectedInvCountBadge" class="text-xs text-apple-cyan font-semibold ml-1">0개 선택</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="deleteSelectedInventory()" class="text-xs px-2.5 py-1 rounded-lg bg-apple-red/15 hover:bg-apple-red/25 text-apple-red font-semibold transition">
+                선택 삭제
+              </button>
+              <button onclick="deleteAllInventory()" class="text-xs px-2 py-1 rounded-lg bg-apple-surface hover:bg-apple-elevated text-apple-label hover:text-apple-red transition">
+                전체 삭제
+              </button>
+            </div>
+          </div>
+
+          <!-- Add Item Form (Compact Accordion Drawer) -->
+          <div id="inventoryAddForm" class="hidden p-4 sm:p-5 bg-apple-card rounded-2xl space-y-3.5 border border-apple-elevated/60 shadow-lg">
+            <span class="text-xs sm:text-sm font-bold text-white block border-b border-apple-surface pb-2">새 비축 품목 등록</span>
+            <div class="space-y-2.5">
+              <div>
+                <label class="text-xs font-medium text-apple-label block mb-1">품목명</label>
+                <input type="text" id="newInvName" placeholder="예: 바르닭 소스 닭가슴살" class="w-full bg-apple-surface px-3 py-2 rounded-xl text-xs sm:text-sm text-white border border-apple-elevated focus:outline-none focus:border-apple-cyan">
+              </div>
+              <div class="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label class="text-xs font-medium text-apple-label block mb-1 whitespace-nowrap">초기 수량 & 단위</label>
+                  <div class="flex items-center gap-1.5 bg-apple-surface px-2.5 py-1.5 rounded-xl border border-apple-elevated">
+                    <input type="number" id="newInvCount" placeholder="10" class="w-full bg-transparent text-xs sm:text-sm text-white font-mono font-bold focus:outline-none">
+                    <input type="text" id="newInvUnit" placeholder="팩" value="팩" class="w-8 bg-transparent text-xs text-apple-subhead text-center border-l border-apple-card pl-1 focus:outline-none">
+                  </div>
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-apple-label block mb-1 whitespace-nowrap">칼로리 (kcal)</label>
+                  <div class="flex items-center gap-1.5 bg-apple-surface px-2.5 py-1.5 rounded-xl border border-apple-elevated">
+                    <input type="number" id="newInvCal" placeholder="120" class="w-full bg-transparent text-xs sm:text-sm text-white font-mono font-bold focus:outline-none">
+                    <span class="text-xs text-apple-label font-mono">kcal</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-medium text-apple-label block mb-1 whitespace-nowrap">1회 제공량당 단백질 (g)</label>
+                <div class="flex items-center gap-1.5 bg-apple-surface px-2.5 py-1.5 rounded-xl border border-apple-elevated">
+                  <input type="number" id="newInvPro" placeholder="22" class="w-full bg-transparent text-xs sm:text-sm text-apple-green font-mono font-bold focus:outline-none">
+                  <span class="text-xs text-apple-label font-mono">g</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-2 pt-1">
+              <button onclick="addInventoryItem()" class="flex-1 py-2.5 rounded-xl bg-apple-green text-black font-bold text-xs sm:text-sm transition hover:opacity-90">
+                등록하기
+              </button>
+              <button onclick="toggleAddItemForm()" class="px-3 py-2.5 rounded-xl bg-apple-surface hover:bg-apple-card text-apple-label hover:text-white font-semibold text-xs sm:text-sm transition">
+                취소
+              </button>
+            </div>
+          </div>
+
+          <!-- Inventory List -->
+          <div id="inventoryListContainer" class="space-y-3"></div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================= TAB 4: 11주 마일스톤 트래커 ================= -->
+    <div id="tabContent4" class="tab-content space-y-6">
+      
+      <!-- Tracker Summary & InBody Mode Toggle -->
+      <div class="bg-apple-surface rounded-2xl p-5 sm:p-6 space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="text-sm sm:text-base font-bold text-white tracking-tight">11주 체중 & 허리둘레 마일스톤</h3>
+            <p class="text-xs sm:text-sm text-apple-label mt-0.5">시작 신체치(91.1kg / 110cm) 기준 생리학적 감량 궤도 모니터링</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="toggleInBodyMode()" id="inBodyModeBtn" class="px-3 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-xs sm:text-sm font-medium text-apple-cyan transition">
+              인바디 정밀 모드 On
+            </button>
+            <button onclick="resetMilestoneTracker()" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-label hover:text-white transition font-medium">
+              초기화
+            </button>
+          </div>
+        </div>
+
+        <!-- Weight Trajectory Graph Card -->
+        <div class="bg-apple-card p-4 sm:p-5 rounded-xl border border-apple-elevated/40">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-4 text-xs font-medium">
+              <span class="text-white font-bold">감량 궤도 추이 (kg)</span>
+              <div class="flex items-center gap-1.5 text-apple-label">
+                <span class="w-3 h-0.5 border-t-2 border-dashed border-apple-label inline-block"></span>
+                <span>목표 곡선</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-apple-cyan">
+                <span class="w-2.5 h-2.5 rounded-full bg-apple-cyan inline-block"></span>
+                <span>실제 측정</span>
+              </div>
+            </div>
+            <span id="chartTooltip" class="text-xs text-apple-green font-mono font-medium"></span>
+          </div>
+
+          <div class="w-full overflow-hidden">
+            <svg id="trajectorySvg" viewBox="0 0 760 160" class="w-full h-36 sm:h-44 select-none"></svg>
+          </div>
+        </div>
+
+        <!-- 11-Week Data Table (Fixed Column Widths to Prevent Layout Shift) -->
+        <div class="overflow-x-auto no-scrollbar">
+          <table class="w-full text-left text-xs sm:text-sm table-fixed min-w-[700px]">
+            <thead>
+              <tr class="text-apple-label border-b border-apple-card text-xs sm:text-sm">
+                <th class="py-3 px-2 font-semibold w-[60px]">주차</th>
+                <th class="py-3 px-2 font-semibold w-[170px]">주요 초점</th>
+                <th class="py-3 px-2 font-semibold w-[85px]">목표 체중</th>
+                <th class="py-3 px-2 font-semibold text-apple-cyan w-[145px]">실제 측정 (kg) ✍️</th>
+                <th class="py-3 px-2 font-semibold text-center w-[85px]">오차</th>
+                <th class="py-3 px-2 font-semibold w-[85px]">목표 둘레</th>
+                <th class="py-3 px-2 font-semibold text-apple-cyan w-[145px]">실제 둘레 (cm) ✍️</th>
+                <th class="py-3 px-2 font-semibold inbody-col hidden w-[80px]">목표 체지방</th>
+                <th class="py-3 px-2 font-semibold inbody-col hidden text-apple-cyan w-[90px]">실제 체지방 ✍️</th>
+                <th class="py-3 px-2 font-semibold inbody-col hidden w-[80px]">목표 골격근</th>
+                <th class="py-3 px-2 font-semibold inbody-col hidden text-apple-cyan w-[90px]">실제 골격근 ✍️</th>
+                <th class="py-3 px-2 font-semibold text-right w-[85px]">상태</th>
+              </tr>
+            </thead>
+            <tbody id="milestoneTableBody" class="divide-y divide-apple-card/60"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Long-term Vision Card (Phase 2 Roadmap) -->
+      <div class="bg-apple-surface rounded-2xl p-5 sm:p-6 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-apple-cyan uppercase tracking-wider">NEXT MILESTONE</span>
+            <span class="text-sm font-bold text-white">Phase 2: 72kg & 복근 가시화 로드맵</span>
+          </div>
+          <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-apple-card text-apple-label">12주 ~ 24주 차</span>
+        </div>
+        
+        <p class="text-xs sm:text-sm text-apple-subhead leading-relaxed">
+          11주 프로토콜(80.8kg 안착) 완주 후, 약 2~3주의 <strong>대사 회복기(Diet Break: 2,200 kcal 유지)</strong>를 거쳐 체지방 10~12%(체중 72kg, 허리둘레 79cm)로 향하는 2단계 체지방 커팅 프로토콜로 진입합니다.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+          <div class="p-4 bg-apple-card rounded-xl">
+            <span class="text-xs font-semibold text-apple-label">1단계 결산 (W11 완주)</span>
+            <p class="text-base font-bold text-white mt-0.5">80.8 kg / 허리 95.5 cm</p>
+            <p class="text-xs text-apple-label mt-1">체지방률 ~20% 진입, 내장지방 정상화</p>
+          </div>
+          <div class="p-4 bg-apple-card rounded-xl">
+            <span class="text-xs font-semibold text-apple-label">대사 회복기 (2~3주)</span>
+            <p class="text-base font-bold text-white mt-0.5">80.5 ~ 81.0 kg 유지</p>
+            <p class="text-xs text-apple-label mt-1">렙틴/갑상선 호르몬 정상화 & 근력 증량</p>
+          </div>
+          <div class="p-4 bg-apple-card rounded-xl">
+            <span class="text-xs font-semibold text-apple-cyan">2단계 최종 목표 (Phase 2)</span>
+            <p class="text-base font-bold text-white mt-0.5">72.0 kg / 허리 79.0 cm</p>
+            <p class="text-xs text-apple-cyan mt-1">체지방률 10~12%, 상하 복근 라인 선명화</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // State variables
+    let activeTabId = 1;
+    let isSummarySticky = true;
+    let isInBodyMode = false;
+    let is13hBarOpen = true;
+    let selectedBlockId = 'workout';
+    let editingInvId = null; // Individual item currently being edited inline
+    let isInvBatchMode = false; // Multi-select batch mode toggle
+    let selectedInvIds = new Set();
+    let isDietEditMode = false;
+    let selectedDinnerSet = 'A';
+    let restTimerInterval = null;
+    let restSecondsLeft = 0;
+
+    // Default Baseline Inventory for 1-click restore
+    const defaultInventoryPreset = [
+      { id: 'inv_rice', name: 'KF365 볶음밥', count: 12, unit: '팩', cal: 390, pro: 16 },
+      { id: 'inv_box', name: '더담은 고단백 도시락', count: 8, unit: '팩', cal: 405, pro: 31 },
+      { id: 'inv_chicken', name: '바르닭 소스 닭가슴살', count: 14, unit: '팩', cal: 120, pro: 22 },
+      { id: 'inv_egg', name: '감동란 / 훈제란', count: 10, unit: '알', cal: 65, pro: 6 },
+      { id: 'inv_whey', name: 'WPI 프로틴 파우더', count: 24, unit: '회분', cal: 130, pro: 25 },
+      { id: 'inv_gel', name: '4번 에너지 젤', count: 16, unit: '포', cal: 100, pro: 1 }
+    ];
+
+    // Scheduler Default Times (in minutes from midnight)
+    const sched = {
+      workStart: 480,       // 08:00
+      workEnd: 1020,        // 17:00
+      leaveWork: 1050,      // 17:30
+      workoutStart: 1080,   // 18:00
+      workoutDur: 100,      // 100 min
+      dinnerStart: 1210,    // 20:10
+      dinnerDur: 30,        // 30 min
+      bedtime: 1380,        // 23:00
+      wakeTime: 420         // 07:00
+    };
+
+    // Timeline Blocks Data (Pure routine & activity schedule without diet items)
+    const routineBlocks = [
+      { id: 'work', title: '집중 근무 & 일과', start: 480, dur: 540, color: '#636366', desc: '08:00 ~ 17:00 집중 업무 및 활동 시간. 규칙적인 기립 스트레칭 및 수분 섭취.' },
+      { id: 'transit', title: '퇴근 및 운동 준비', start: 1020, dur: 60, color: '#ff9f0a', desc: '17:00 ~ 18:00 업무 마감 및 체육관 이동, 웜업 스트레칭.' },
+      { id: 'workout', title: '웨이트 + 인터벌 러닝', start: 1080, dur: 100, color: '#fa114f', desc: '웨이트 45분 (RPE 8 준수, 대근육 위주) + 유산소 40분 (Zone 2 또는 HIIT) 결합 프로토콜.' },
+      { id: 'commute', title: '귀가 & 미온수 샤워', start: 1180, dur: 30, color: '#64d2ff', desc: '19:40 즉시 이동. 32~35°C 미온수 샤워로 코어 체온을 쿨다운시켜 수면 멜라토닌 분비 촉진.' },
+      { id: 'dinner', title: '저녁 식사', start: 1210, dur: 30, color: '#30d158', desc: '20:10 식사 시작. 고단백 식사 완료. 20:40 이전 식사 완료 필수.' },
+      { id: 'winddown', title: '소화 & 야간 이완', start: 1240, dur: 140, color: '#bf5af2', desc: '20:40~23:00 최소 2시간 20분 이상 소화 시간 확보. 블루라이트 차단 및 스트레칭.' },
+      { id: 'sleep', title: '렘/깊은 수면 주기', start: 1380, dur: 480, color: '#0a84ff', desc: '23:00~07:00 8시간 수면 (90분 수면 주기 5회 완료). 근합성 및 신체 회복.' }
+    ];
+
+    // Inventory State with Nutrition (cal, pro per serving)
+    let inventory = [
+      { id: 'inv_rice', name: 'KF365 볶음밥', count: 12, unit: '팩', cal: 390, pro: 16 },
+      { id: 'inv_box', name: '더담은 고단백 도시락', count: 8, unit: '팩', cal: 405, pro: 31 },
+      { id: 'inv_chicken', name: '바르닭 소스 닭가슴살', count: 14, unit: '팩', cal: 120, pro: 22 },
+      { id: 'inv_egg', name: '감동란 / 훈제란', count: 10, unit: '알', cal: 65, pro: 6 },
+      { id: 'inv_whey', name: 'WPI 프로틴 파우더', count: 24, unit: '회분', cal: 130, pro: 25 },
+      { id: 'inv_gel', name: '4번 에너지 젤', count: 16, unit: '포', cal: 100, pro: 1 }
+    ];
+
+    // Diet Checklist State: Clean start (all unchecked by default)
+    let dietItems = [
+      { id: 'd_morning', time: '07:30', name: '웨이 프로틴 1스쿱 (물)', cal: 130, pro: 25, checked: false, invId: 'inv_whey', invQty: 1 },
+      { id: 'd_lunch', time: '12:00', name: '구내식당 (밥 1/2 + 육류 위주, 국물 제외)', cal: 750, pro: 50, checked: false, invId: null, invQty: 0 },
+      { id: 'd_snack', time: '16:30', name: '감동란 2알', cal: 130, pro: 12, checked: false, invId: 'inv_egg', invQty: 2 },
+      { id: 'd_gel', time: '17:30', name: '4번 에너지 젤 1포 (글리코겐 부스팅)', cal: 100, pro: 1, checked: false, invId: 'inv_gel', invQty: 1 },
+      { id: 'd_dinner', time: '20:10', name: '저녁 간편식 세트 A (볶음밥+닭가슴살)', cal: 510, pro: 38, checked: false, invId: 'inv_rice', invQty: 1 }
+    ];
+
+    // Workout Exercises: Clean start (all done: [false, false, false, false])
+    const workoutsByDay = {
+      mon: {
+        title: '월요일: 하체 근력 & 대사 인터벌',
+        focus: '글리코겐 완전 고갈 ➔ 지방 대사 스위치 온',
+        cardioType: 'HIIT 러닝 25분',
+        cardioDesc: '속도 11.5km/h (1분 질주) + 속도 5.5km/h (1.5분 회복) ➔ 8세트 반복 (타깃 심박수 165~178 bpm)',
+        exercises: [
+          { name: '바벨 백스쿼트', sets: 4, target: '8-10회 (RPE 8)', done: [false, false, false, false] },
+          { name: '루마니안 데드리프트', sets: 4, target: '8-10회 (RPE 8)', done: [false, false, false, false] },
+          { name: '레그프레스', sets: 4, target: '12-15회 (볼륨)', done: [false, false, false, false] },
+          { name: '워킹 런지', sets: 4, target: '20걸음', done: [false, false, false, false] }
+        ]
+      },
+      tue: {
+        title: '화요일: 상체 밀기 (가슴/어깨/삼두)',
+        focus: '상체 볼륨 보존 & Zone 2 지방산 연소',
+        cardioType: 'Zone 2 인클라인 파워워킹 35분',
+        cardioDesc: '경사도 10~12%, 속도 4.5~5.0km/h (타깃 심박수 125~138 bpm 유지)',
+        exercises: [
+          { name: '바벨 벤치프레스', sets: 4, target: '8-10회', done: [false, false, false, false] },
+          { name: '덤벨 오버헤드 프레스', sets: 4, target: '10-12회', done: [false, false, false, false] },
+          { name: '인클라인 덤벨 프레스', sets: 4, target: '10-12회', done: [false, false, false, false] },
+          { name: '딥스 또는 케이블 푸시다운', sets: 4, target: '12-15회', done: [false, false, false, false] }
+        ]
+      },
+      wed: {
+        title: '수요일: 등/당기기 & 코어 집중',
+        focus: '후면 사슬 강화 & 자세 교정',
+        cardioType: 'Zone 2 트레드밀 30분',
+        cardioDesc: '경사도 8%, 속도 5.2km/h (심박수 128~135 bpm 안정 유지)',
+        exercises: [
+          { name: '컨벤셔널/렉풀 데드리프트', sets: 4, target: '6-8회', done: [false, false, false, false] },
+          { name: '랫풀다운 (와이드 그립)', sets: 4, target: '10-12회', done: [false, false, false, false] },
+          { name: '시티드 케이블 로우', sets: 4, target: '10-12회', done: [false, false, false, false] },
+          { name: '행잉 레그레이즈 & 플랭크', sets: 4, target: '15회 / 1분', done: [false, false, false, false] }
+        ]
+      },
+      thu: {
+        title: '목요일: 하체 파워 & HIIT 스프린트',
+        focus: '성장호르몬 분비 촉진 & 심폐 부스팅',
+        cardioType: 'HIIT 인터벌 러닝 25분',
+        cardioDesc: '1분 전력 질주 (12km/h) + 1분 조깅 (6km/h) ➔ 10세트',
+        exercises: [
+          { name: '프론트 스쿼트 또는 레그프레스', sets: 4, target: '10회', done: [false, false, false, false] },
+          { name: '덤벨 스티프 레그 데드리프트', sets: 4, target: '10-12회', done: [false, false, false, false] },
+          { name: '레그 익스텐션 & 컬 슈퍼세트', sets: 4, target: '12회', done: [false, false, false, false] },
+          { name: '카프 레이즈', sets: 4, target: '15-20회', done: [false, false, false, false] }
+        ]
+      },
+      fri: {
+        title: '금요일: 상체 전체 볼륨 & 1주 결산',
+        focus: '주간 근육 글리코겐 완전 연소',
+        cardioType: 'Zone 2 지속 러닝 30분',
+        cardioDesc: '속도 7.5~8.0km/h 가벼운 조깅 (심박수 130~140 bpm 유지)',
+        exercises: [
+          { name: '덤벨 인클라인 벤치프레스', sets: 4, target: '10회', done: [false, false, false, false] },
+          { name: '바벨 바벨로우', sets: 4, target: '10회', done: [false, false, false, false] },
+          { name: '사이드 레터럴 레이즈', sets: 4, target: '15회', done: [false, false, false, false] },
+          { name: '바벨 이두 컬 & 트라이셉스 익스텐션', sets: 4, target: '12회', done: [false, false, false, false] }
+        ]
+      }
+    };
+    let currentWorkoutDay = 'mon';
+    let isCardioDone = false;
+
+    // 11-Week Milestones Baseline Data
+    let milestones = [
+      { week: '시작', focus: '기준점 계측', targetW: 91.1, actualW: 91.1, targetWaist: 110.0, actualWaist: 110.0, targetFat: 28.5, actualFat: 28.5, targetSmm: 36.5, actualSmm: 36.5 },
+      { week: 'W01', focus: '80kg대 진입 (-1.6kg / -2.0cm)', targetW: 89.5, actualW: null, targetWaist: 108.0, actualWaist: null, targetFat: 27.8, actualFat: null, targetSmm: 36.4, actualSmm: null },
+      { week: 'W02', focus: '1차 안정기 (누적 -2.7kg)', targetW: 88.4, actualW: null, targetWaist: 106.5, actualWaist: null, targetFat: 27.0, actualFat: null, targetSmm: 36.3, actualSmm: null },
+      { week: 'W03', focus: '87kg 진입 (허리 105cm 목표)', targetW: 87.5, actualW: null, targetWaist: 105.0, actualWaist: null, targetFat: 26.2, actualFat: null, targetSmm: 36.2, actualSmm: null },
+      { week: 'W04', focus: '1차 결산 (누적 -4.6kg 달성)', targetW: 86.5, actualW: null, targetWaist: 103.5, actualWaist: null, targetFat: 25.5, actualFat: null, targetSmm: 36.2, actualSmm: null },
+      { week: 'W05', focus: '85kg대 진입 (누적 -5.5kg)', targetW: 85.6, actualW: null, targetWaist: 102.0, actualWaist: null, targetFat: 24.8, actualFat: null, targetSmm: 36.1, actualSmm: null },
+      { week: 'W06', focus: '정체기 방어 (84kg대 유지)', targetW: 84.8, actualW: null, targetWaist: 100.5, actualWaist: null, targetFat: 24.0, actualFat: null, targetSmm: 36.0, actualSmm: null },
+      { week: 'W07', focus: '84kg 돌파 (허리 두 자릿수 99cm)', targetW: 83.9, actualW: null, targetWaist: 99.0, actualWaist: null, targetFat: 23.2, actualFat: null, targetSmm: 36.0, actualSmm: null },
+      { week: 'W08', focus: '2차 결산 (누적 -7.9kg 달성)', targetW: 83.0, actualW: null, targetWaist: 98.0, actualWaist: null, targetFat: 22.5, actualFat: null, targetSmm: 35.9, actualSmm: null },
+      { week: 'W09', focus: '82kg대 안착 (근력 중량 유지)', targetW: 82.2, actualW: null, targetWaist: 97.0, actualWaist: null, targetFat: 21.8, actualFat: null, targetSmm: 35.9, actualSmm: null },
+      { week: 'W10', focus: '81kg대 진입 (최종 구간 감량)', targetW: 81.5, actualW: null, targetWaist: 96.2, actualWaist: null, targetFat: 21.0, actualFat: null, targetSmm: 35.8, actualSmm: null },
+      { week: 'W11', focus: '최종 목표 도달 (80.8kg / 95.5cm)', targetW: 80.8, actualW: null, targetWaist: 95.5, actualWaist: null, targetFat: 20.0, actualFat: null, targetSmm: 35.8, actualSmm: null }
+    ];
+
+    // Helper: minutes from midnight to HH:MM format
+    function mToTime(min) {
+      const normalized = ((min % 1440) + 1440) % 1440;
+      const h = Math.floor(normalized / 60);
+      const m = normalized % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    // Helper: minutes to Korean hours + minutes (e.g. 60분 ➔ 1시간, 100분 ➔ 1시간 40분, 30분 ➔ 30분)
+    function formatDurationKorean(mins) {
+      if (!mins || mins <= 0) return '0분';
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h > 0 && m > 0) return `${h}시간 ${m}분`;
+      if (h > 0) return `${h}시간`;
+      return `${m}분`;
+    }
+
+    // Helper: minutes to Korean natural time format (e.g. 저녁 6시 10분, 밤 11시 00분, 오전 8시 00분)
+    function mToKoreanTime(min) {
+      const normalized = ((min % 1440) + 1440) % 1440;
+      const h = Math.floor(normalized / 60);
+      const m = normalized % 60;
+      let period = '오전';
+      let displayH = h;
+      if (h >= 12) {
+        if (h >= 18 && h < 21) period = '저녁';
+        else if (h >= 21 || h < 4) period = '밤';
+        else period = '오후';
+        displayH = h > 12 ? h - 12 : 12;
+      } else if (h === 0) {
+        period = '자정';
+        displayH = 12;
+      }
+      return `${period} ${displayH}시 ${String(m).padStart(2, '0')}분`;
+    }
+
+    // Toggle 13-Hour Linear Schedule Bar
+    function toggle13hScheduleBar() {
+      is13hBarOpen = !is13hBarOpen;
+      const container = document.getElementById('unfoldedLinearBarContainer');
+      const textEl = document.getElementById('toggle13hText');
+      const iconEl = document.getElementById('toggle13hIcon');
+      const btn = document.getElementById('toggle13hBarBtn');
+
+      if (container) {
+        if (is13hBarOpen) {
+          container.className = "w-full bg-apple-card rounded-2xl p-4 sm:p-5 border border-apple-elevated/60 shadow-lg bar-expanded my-2";
+          if (textEl) textEl.textContent = "타임라인 접기";
+          if (iconEl) iconEl.textContent = "▲";
+          if (btn) btn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-apple-elevated text-apple-cyan text-xs sm:text-sm font-semibold transition";
+        } else {
+          container.className = "w-full bg-apple-card rounded-2xl p-4 sm:p-5 border border-apple-elevated/60 shadow-lg bar-collapsed my-0";
+          if (textEl) textEl.textContent = "타임라인 펼치기";
+          if (iconEl) iconEl.textContent = "🌙";
+          if (btn) btn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-white text-xs sm:text-sm font-semibold transition";
+        }
+      }
+      drawCircularDial();
+    }
+
+    // Tab Switching
+    function switchTab(tabId) {
+      activeTabId = tabId;
+      for (let i = 1; i <= 4; i++) {
+        const content = document.getElementById(`tabContent${i}`);
+        const navBtn = document.getElementById(`navTab${i}`);
+        if (content) {
+          content.classList.toggle('active', i === tabId);
+        }
+        if (navBtn) {
+          if (i === tabId) {
+            navBtn.className = "px-4 py-2 rounded-lg transition text-white bg-[#2c2c2e] font-semibold whitespace-nowrap shadow-sm";
+          } else {
+            navBtn.className = "px-4 py-2 rounded-lg transition text-apple-label hover:text-white whitespace-nowrap";
+          }
+        }
+      }
+      renderTopSummary();
+    }
+
+    // Toggle Sticky Top Summary
+    function toggleStickySummary() {
+      isSummarySticky = !isSummarySticky;
+      const container = document.getElementById('topSummaryStickyContainer');
+      const btnText = document.getElementById('stickyPinText');
+      const pinIcon = document.getElementById('stickyPinIcon');
+
+      if (isSummarySticky) {
+        container.className = "sticky top-[96px] z-30 bg-black/95 backdrop-blur-xl py-2.5 transition-all duration-200 border-b border-[#1c1c1e]";
+        btnText.textContent = "고정";
+        btnText.className = "text-apple-cyan font-semibold";
+        pinIcon.className = "text-apple-cyan";
+      } else {
+        container.className = "relative py-0 transition-all duration-200 border-none";
+        btnText.textContent = "해제됨";
+        btnText.className = "text-apple-label";
+        pinIcon.className = "text-apple-label";
+      }
+    }
+
+    // Toggle InBody Detail Columns
+    function toggleInBodyMode() {
+      isInBodyMode = !isInBodyMode;
+      const btn = document.getElementById('inBodyModeBtn');
+      if (btn) {
+        btn.textContent = isInBodyMode ? "인바디 정밀 모드 Off" : "인바디 정밀 모드 On";
+        btn.className = isInBodyMode
+          ? "px-2.5 py-1.5 rounded-lg bg-apple-green text-black font-semibold text-xs transition"
+          : "px-2.5 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-xs font-medium text-apple-cyan transition";
+      }
+      document.querySelectorAll('.inbody-col').forEach(el => {
+        el.classList.toggle('hidden', !isInBodyMode);
+      });
+    }
+
+    // Render Dynamic Top Summary Header
+    function renderTopSummary() {
+      const desktopSec = document.getElementById('topDynamicSummarySection');
+      const mobileBar = document.getElementById('mobileSlimSummaryBar');
+      if (!desktopSec || !mobileBar) return;
+
+      if (activeTabId === 1) {
+        // Tab 1: Evening Routine Summary
+        const dinnerEnd = sched.dinnerStart + sched.dinnerDur;
+        let digestionMins = sched.bedtime - dinnerEnd;
+        if (digestionMins < 0) digestionMins += 1440;
+        
+        const digH = Math.floor(digestionMins / 60);
+        const digM = digestionMins % 60;
+        const digestionFormatted = `${digH}시간 ${digM > 0 ? digM + '분' : ''}`.trim();
+        const sleepHours = ((sched.wakeTime + 1440 - sched.bedtime) % 1440 / 60).toFixed(1);
+
+        desktopSec.innerHTML = `
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">식후 소화 여유</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold text-white">${digH}</span>
+              <span class="text-xs sm:text-sm text-apple-label">시간</span>
+              <span class="text-2xl sm:text-3xl font-bold text-white ml-1.5">${digM}</span>
+              <span class="text-xs sm:text-sm text-apple-label">분</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-green mt-1">2시간 20분 이상 충족 (역류 방지)</p>
+          </div>
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">저녁 식사 마감</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold text-white">${mToKoreanTime(dinnerEnd)}</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">20:40 이전 완료 권장선 준수</p>
+          </div>
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">수면 시간</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold text-white">${sleepHours}</span>
+              <span class="text-xs sm:text-sm text-apple-label">시간 (수면 주기 ${(sleepHours / 1.5).toFixed(1)}회)</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">취침 ${mToTime(sched.bedtime)} ➔ 기상 ${mToTime(sched.wakeTime)}</p>
+          </div>
+        `;
+        mobileBar.innerHTML = `
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-apple-green"></span>
+            <span>소화 <strong>${digestionFormatted}</strong></span>
+          </div>
+          <span class="text-apple-label">|</span>
+          <div>식사 마감 <strong>${mToTime(dinnerEnd)}</strong></div>
+          <span class="text-apple-label">|</span>
+          <div>수면 <strong>${sleepHours}h</strong></div>
+        `;
+      } else if (activeTabId === 2) {
+        // Tab 2: Workout Summary
+        const plan = workoutsByDay[currentWorkoutDay];
+        let totalSets = 0, doneSets = 0;
+        plan.exercises.forEach(ex => {
+          totalSets += ex.sets;
+          doneSets += ex.done.filter(Boolean).length;
+        });
+
+        desktopSec.innerHTML = `
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">주간 운동 세트 완수</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold text-white">${doneSets}</span>
+              <span class="text-xs sm:text-sm text-apple-label">/ ${totalSets} 세트</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-green mt-1">${plan.title}</p>
+          </div>
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">오늘 유산소 목표</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-base sm:text-xl font-bold text-apple-cyan truncate">${plan.cardioType}</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">${isCardioDone ? '목표 달성 완료' : '운동 후 진행'}</p>
+          </div>
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">세트 휴식 라이브 타이머</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold text-white font-mono" id="headerRestTimerDisplay">${restSecondsLeft > 0 ? String(restSecondsLeft).padStart(2,'0') + 's' : '60초'}</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">세트 간 휴식 시간 엄수</p>
+          </div>
+        `;
+        mobileBar.innerHTML = `
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${doneSets === totalSets ? 'bg-apple-green' : 'bg-apple-cyan'}"></span>
+            <span>세트 <strong>${doneSets}/${totalSets}</strong></span>
+          </div>
+          <span class="text-apple-label">|</span>
+          <div class="truncate max-w-[130px]"><strong>${plan.cardioType.split(' ')[0]}</strong></div>
+          <span class="text-apple-label">|</span>
+          <div>휴식 <strong>${restSecondsLeft > 0 ? restSecondsLeft + 's' : '60s'}</strong></div>
+        `;
+      } else if (activeTabId === 3) {
+        // Tab 3: Diet & Inventory Summary
+        let totalCal = 0, totalPro = 0, checkedCount = 0;
+        dietItems.forEach(item => {
+          if (item.checked) {
+            totalCal += item.cal;
+            totalPro += item.pro;
+            checkedCount++;
+          }
+        });
+        const lowStockItems = inventory.filter(i => i.count <= 3);
+
+        desktopSec.innerHTML = `
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">일일 칼로리</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold text-white">${totalCal}</span>
+              <span class="text-xs sm:text-sm text-apple-label">/ 1,700 kcal</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">결손 약 900kcal 유지</p>
+          </div>
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">단백질 충족도</span>
+              <span class="text-[11px] text-apple-green font-semibold bg-apple-green/10 px-1.5 py-0.5 rounded">방어선 130g</span>
+            </div>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold ${totalPro >= 130 ? 'text-apple-green' : 'text-white'}">${totalPro}</span>
+              <span class="text-xs sm:text-sm text-apple-label">/ 160 g</span>
+            </div>
+            <p class="text-xs sm:text-sm ${totalPro >= 130 ? 'text-apple-green' : 'text-apple-label'} mt-1">${totalPro >= 130 ? '최소 방어선 충족' : '단백질 추가 섭취 필요'}</p>
+          </div>
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">비축 식단 알림</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-base sm:text-xl font-bold ${lowStockItems.length > 0 ? 'text-apple-orange' : 'text-apple-green'}">
+                ${lowStockItems.length > 0 ? `재발주 필요 ${lowStockItems.length}건` : '식단 비축 여유'}
+              </span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">${lowStockItems.length > 0 ? lowStockItems.map(i=>i.name.split(' ')[0]).join(', ') : '냉장고 재고 충분함'}</p>
+          </div>
+        `;
+        mobileBar.innerHTML = `
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${totalPro >= 130 ? 'bg-apple-green' : 'bg-apple-orange'}"></span>
+            <span>단백질 <strong>${totalPro}g</strong></span>
+          </div>
+          <span class="text-apple-label">|</span>
+          <div>칼로리 <strong>${totalCal}kcal</strong></div>
+          <span class="text-apple-label">|</span>
+          <div>비축 <strong>${lowStockItems.length > 0 ? lowStockItems.length + '건 부족' : '여유'}</strong></div>
+        `;
+      } else if (activeTabId === 4) {
+        // Tab 4: 11-Week Milestone Tracker Summary
+        const startW = milestones[0].actualW || milestones[0].targetW;
+        let latestActualW = startW;
+        let latestActualWaist = milestones[0].actualWaist || milestones[0].targetWaist;
+        let latestWeek = '시작';
+
+        for (let i = milestones.length - 1; i >= 0; i--) {
+          if (milestones[i].actualW !== null) {
+            latestActualW = milestones[i].actualW;
+            latestActualWaist = milestones[i].actualWaist || milestones[i].targetWaist;
+            latestWeek = milestones[i].week;
+            break;
+          }
+        }
+
+        const totalDrop = (startW - latestActualW).toFixed(1);
+        const waistDrop = ((milestones[0].targetWaist) - latestActualWaist).toFixed(1);
+
+        desktopSec.innerHTML = `
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">총 체중 감량</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold ${totalDrop > 0 ? 'text-apple-green' : 'text-white'}">${totalDrop > 0 ? '-'+totalDrop : totalDrop}</span>
+              <span class="text-xs sm:text-sm text-apple-label">kg</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">시작 ${startW}kg ➔ 현재 ${latestActualW}kg (${latestWeek})</p>
+          </div>
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">허리둘레 변화</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold ${waistDrop > 0 ? 'text-apple-cyan' : 'text-white'}">${waistDrop > 0 ? '-'+waistDrop : waistDrop}</span>
+              <span class="text-xs sm:text-sm text-apple-label">cm</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">현재 ${latestActualWaist}cm (내장지방 감소 지표)</p>
+          </div>
+          <div class="bg-apple-surface rounded-2xl p-4 sm:p-5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-apple-label">최종 목표 도달률</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl sm:text-3xl font-bold text-white">${Math.min(100, Math.max(0, Math.round(((startW - latestActualW) / (startW - 80.8)) * 100)))}%</span>
+            </div>
+            <p class="text-xs sm:text-sm text-apple-label mt-1">최종 목표: 80.8kg / 허리 95.5cm</p>
+          </div>
+        `;
+        mobileBar.innerHTML = `
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-apple-green"></span>
+            <span>감량 <strong>${totalDrop > 0 ? '-'+totalDrop : totalDrop}kg</strong></span>
+          </div>
+          <span class="text-apple-label">|</span>
+          <div>허리 <strong>${latestActualWaist}cm</strong></div>
+          <span class="text-apple-label">|</span>
+          <div>현재 <strong>${latestWeek}</strong></div>
+        `;
+      }
+    }
+
+    // Draw Activity Ring Style Circular Dial with Minimal Outer Ticks & Floating Tooltips
+    function drawCircularDial() {
+      const g = document.getElementById('chartSlicesGroup');
+      const ticksGroup = document.getElementById('chartFixedTicksGroup');
+      if (!g || !ticksGroup) return;
+      
+      // Clean both groups to prevent duplicate text stacking or overlapping
+      g.innerHTML = '';
+      ticksGroup.innerHTML = '';
+
+      const cx = 230, cy = 230, r = 165;
+      
+      // Standard 24-hour cycle (1440 min) starting at midnight 00:00 (12 o'clock top = -90 deg)
+      const arcLen = 1440;
+      const baseStart = 0; // 00:00 = 12 o'clock top
+
+      // 1. Draw 4 Permanently Fixed Cardinal Ticks & Labels (오전 0시, 오전 6시, 오후 12시, 오후 6시)
+      // These remain statically at 12 o'clock, 3 o'clock, 6 o'clock, and 9 o'clock at all times!
+      const cardinalTicks = [
+        { offset: 0, label: '오전 0시' },    // 12 o'clock top (00:00)
+        { offset: 360, label: '오전 6시' },  // 3 o'clock right (06:00)
+        { offset: 720, label: '오후 12시' }, // 6 o'clock bottom (12:00)
+        { offset: 1080, label: '오후 6시' }  // 9 o'clock left (18:00)
+      ];
+
+      cardinalTicks.forEach(tick => {
+        const deg = -90 + (tick.offset / arcLen) * 360;
+        const rad = (deg * Math.PI) / 180;
+
+        // Major Tick Line
+        const innerTickR = r + 14;
+        const outerTickR = r + 24;
+        const tx1 = cx + innerTickR * Math.cos(rad);
+        const ty1 = cy + innerTickR * Math.sin(rad);
+        const tx2 = cx + outerTickR * Math.cos(rad);
+        const ty2 = cy + outerTickR * Math.sin(rad);
+
+        const tickLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        tickLine.setAttribute('x1', tx1);
+        tickLine.setAttribute('y1', ty1);
+        tickLine.setAttribute('x2', tx2);
+        tickLine.setAttribute('y2', ty2);
+        tickLine.setAttribute('stroke', '#86868b');
+        tickLine.setAttribute('stroke-width', '2.5');
+        tickLine.setAttribute('stroke-linecap', 'round');
+        ticksGroup.appendChild(tickLine);
+
+        // Major Tick Text Label (Positioned cleanly outside the ring)
+        const labelR = r + 40;
+        const lx = cx + labelR * Math.cos(rad);
+        const ly = cy + labelR * Math.sin(rad);
+
+        const cosVal = Math.cos(rad);
+        const sinVal = Math.sin(rad);
+        let anchor = 'middle';
+        let dy = 4;
+        if (cosVal > 0.4) anchor = 'start';
+        else if (cosVal < -0.4) anchor = 'end';
+        else if (sinVal < -0.4) dy = -3;
+        else if (sinVal > 0.4) dy = 12;
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', lx);
+        text.setAttribute('y', ly + dy);
+        text.setAttribute('fill', '#98989d');
+        text.setAttribute('font-size', '11');
+        text.setAttribute('font-weight', '600');
+        text.setAttribute('text-anchor', anchor);
+        text.textContent = tick.label;
+        ticksGroup.appendChild(text);
+      });
+
+      // 24-Hour Minor Ticks (1 hour increments, permanently fixed)
+      for (let i = 0; i < 24; i++) {
+        // Skip positions where major ticks exist (0, 6, 12, 18)
+        if (i % 6 === 0) continue;
+
+        const deg = -90 + (i / 24) * 360;
+        const rad = (deg * Math.PI) / 180;
+
+        const innerTickR = r + 15;
+        const outerTickR = r + 20;
+        const tx1 = cx + innerTickR * Math.cos(rad);
+        const ty1 = cy + innerTickR * Math.sin(rad);
+        const tx2 = cx + outerTickR * Math.cos(rad);
+        const ty2 = cy + outerTickR * Math.sin(rad);
+
+        const tickLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        tickLine.setAttribute('x1', tx1);
+        tickLine.setAttribute('y1', ty1);
+        tickLine.setAttribute('x2', tx2);
+        tickLine.setAttribute('y2', ty2);
+        tickLine.setAttribute('stroke', '#2c2c2e');
+        tickLine.setAttribute('stroke-width', '1.5');
+        tickLine.setAttribute('stroke-linecap', 'round');
+        ticksGroup.appendChild(tickLine);
+      }
+
+      // 2. Draw 24-Hour Arc Blocks on Dial Track
+      const tooltip = document.getElementById('dialFloatingTooltip');
+      const tooltipTitle = document.getElementById('tooltipSectorTitle');
+      const tooltipTime = document.getElementById('tooltipSectorTime');
+
+      routineBlocks.forEach(b => {
+        const startDeg = -90 + (b.start / arcLen) * 360;
+        const endDeg = -90 + ((b.start + b.dur) / arcLen) * 360;
+        const isSelected = (b.id === selectedBlockId);
+
+        // Highlight active window in 13h mode, slightly dim outside daytime block
+        let arcOpacity = 1.0;
+        if (is13hBarOpen) {
+          if (b.id === 'work') arcOpacity = 0.22;
+        }
+
+        const startRad = (startDeg * Math.PI) / 180;
+        const endRad = (endDeg * Math.PI) / 180;
+
+        const x1 = cx + r * Math.cos(startRad);
+        const y1 = cy + r * Math.sin(startRad);
+        const x2 = cx + r * Math.cos(endRad);
+        const y2 = cy + r * Math.sin(endRad);
+
+        const arcAngle = (b.dur / arcLen) * 360;
+        const largeArc = arcAngle > 180 ? 1 : 0;
+        const d = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', b.color);
+        path.setAttribute('stroke-width', '24');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('opacity', arcOpacity.toString());
+        path.setAttribute('class', 'transition-all duration-200 cursor-pointer');
+        path.style.filter = isSelected ? 'drop-shadow(0 0 8px rgba(255,255,255,0.45))' : 'none';
+
+        // Sector hover interactions
+        path.onmouseenter = (e) => {
+          path.setAttribute('opacity', '1');
+          if (tooltip && tooltipTitle && tooltipTime) {
+            tooltipTitle.textContent = b.title;
+            tooltipTime.textContent = `${mToTime(b.start)} ~ ${mToTime(b.start + b.dur)} (${formatDurationKorean(b.dur)})`;
+            tooltip.style.opacity = '1';
+          }
+        };
+
+        path.onmousemove = (e) => {
+          if (!tooltip) return;
+          const rect = document.getElementById('routineSvg').getBoundingClientRect();
+          const offsetX = e.clientX - rect.left;
+          const offsetY = e.clientY - rect.top;
+          tooltip.style.left = `${offsetX - tooltip.offsetWidth / 2}px`;
+          tooltip.style.top = `${offsetY - tooltip.offsetHeight - 14}px`;
+        };
+
+        path.onmouseleave = () => {
+          path.setAttribute('opacity', arcOpacity.toString());
+          if (tooltip) tooltip.style.opacity = '0';
+        };
+
+        path.onclick = () => selectRoutineBlock(b);
+
+        g.appendChild(path);
+      });
+
+      renderLinearTimelineBar();
+    }
+
+    // Render the Unfolded Horizontal Linear Timeline Bar (Dynamically bounded from leaveWork to wakeTime)
+    function renderLinearTimelineBar() {
+      const segmentBar = document.getElementById('unfoldedSegmentBar');
+      const timeScale = document.getElementById('unfoldedTimeScale');
+      const pin = document.getElementById('barIndicatorPin');
+      const titleEl = document.getElementById('linearBarHeaderTitle');
+      const totalDurEl = document.getElementById('linearBarTotalDurationBadge');
+      if (!segmentBar || !timeScale) return;
+
+      segmentBar.innerHTML = '';
+      timeScale.innerHTML = '';
+
+      // Dynamic bounds derived directly from sliders:
+      const startRange = sched.leaveWork; // Start right at leave work time
+      const wakeTimeAbs = (sched.wakeTime <= sched.leaveWork) ? (sched.wakeTime + 1440) : sched.wakeTime;
+      const totalMins = Math.max(60, wakeTimeAbs - startRange);
+
+      if (titleEl) {
+        titleEl.textContent = `저녁 ~ 수면 타임라인 (${mToTime(sched.leaveWork)} ~ ${mToTime(sched.wakeTime)})`;
+      }
+      if (totalDurEl) {
+        totalDurEl.textContent = `총 ${formatDurationKorean(totalMins)} (${totalMins}분)`;
+      }
+
+      // Collect routine blocks that belong to the evening & sleep schedule (excluding daytime work)
+      const eveningBlocks = routineBlocks.filter(b => b.id !== 'work');
+
+      let activeOffsetAccum = 0;
+      let selectedCenterPct = 50;
+      let selectedColor = '#fa114f';
+
+      eveningBlocks.forEach(b => {
+        let blockStartAbs = (b.start < sched.leaveWork && b.start < 720) ? (b.start + 1440) : b.start;
+        let effectiveDur = b.dur;
+
+        // If sleep block, stretch cleanly to the exact wake time to prevent empty black gaps
+        if (b.id === 'sleep') {
+          effectiveDur = Math.max(0, wakeTimeAbs - blockStartAbs);
+        }
+
+        const segWidthPct = (effectiveDur / totalMins) * 100;
+        const isSelected = (b.id === selectedBlockId);
+
+        if (isSelected) {
+          selectedCenterPct = activeOffsetAccum + (segWidthPct / 2);
+          selectedColor = b.color;
+        }
+
+        const seg = document.createElement('div');
+        seg.style.width = `${segWidthPct}%`;
+        seg.style.backgroundColor = b.color;
+        seg.className = `h-full rounded-md transition-all duration-300 cursor-pointer ${isSelected ? 'ring-2 ring-white scale-y-110 shadow-lg' : 'opacity-85 hover:opacity-100 hover:scale-y-105'}`;
+        seg.title = `${b.title} (${formatDurationKorean(effectiveDur)}: ${mToTime(b.start)} ~ ${mToTime(b.start + effectiveDur)})`;
+        seg.onclick = () => selectRoutineBlock(b);
+
+        segmentBar.appendChild(seg);
+        activeOffsetAccum += segWidthPct;
+      });
+
+      // Position the Sliding Caret Pointer Pin
+      if (pin) {
+        pin.style.left = `${Math.min(96, Math.max(4, selectedCenterPct))}%`;
+        pin.style.borderTopColor = selectedColor;
+      }
+
+      // Dynamic Non-overlapping Milestone Axis:
+      // Always show Left Start (Leave Work), Right End (Wake Time), and eligible intermediate 6-hour cardinal ticks
+      const dynamicMarkers = [];
+
+      // 1. Start boundary marker (Leftmost)
+      dynamicMarkers.push({
+        pct: 0,
+        label: `퇴근 ${mToTime(sched.leaveWork)}`,
+        isBoundary: true,
+        align: 'left'
+      });
+
+      // 2. Candidate 6-hour cardinal ticks within range (e.g. 18:00, 00:00, 06:00)
+      const candidates = [
+        { absMin: 1080, label: '오후 6시 (18:00)' },
+        { absMin: 1440, label: '자정 (00:00)' },
+        { absMin: 1800, label: '오전 6시 (06:00)' }
+      ];
+
+      candidates.forEach(cand => {
+        if (cand.absMin > startRange + 35 && cand.absMin < wakeTimeAbs - 40) {
+          const pct = ((cand.absMin - startRange) / totalMins) * 100;
+          dynamicMarkers.push({
+            pct: pct,
+            label: cand.label,
+            isBoundary: false,
+            align: 'center'
+          });
+        }
+      });
+
+      // 3. End boundary marker (Rightmost)
+      dynamicMarkers.push({
+        pct: 100,
+        label: `기상 ${mToTime(sched.wakeTime)}`,
+        isBoundary: true,
+        align: 'right'
+      });
+
+      dynamicMarkers.forEach(m => {
+        const markerWrapper = document.createElement('div');
+        let translateClass = '-translate-x-1/2';
+        let itemsClass = 'items-center';
+
+        if (m.align === 'left') {
+          translateClass = 'translate-x-0';
+          itemsClass = 'items-start';
+        } else if (m.align === 'right') {
+          translateClass = '-translate-x-full';
+          itemsClass = 'items-end';
+        }
+
+        markerWrapper.className = `absolute flex flex-col ${itemsClass} ${translateClass}`;
+        markerWrapper.style.left = `${m.pct}%`;
+
+        markerWrapper.innerHTML = `
+          <div class="w-0.5 ${m.isBoundary ? 'h-3 bg-apple-cyan' : 'h-2 bg-apple-label'}"></div>
+          <span class="text-[10px] sm:text-[11px] font-mono mt-0.5 ${m.isBoundary ? 'text-white font-bold' : 'text-apple-subhead font-medium'} whitespace-nowrap">
+            ${m.label}
+          </span>
+        `;
+        timeScale.appendChild(markerWrapper);
+      });
+    }
+
+    // Select Block from Dial or Linear Bar
+    function selectRoutineBlock(b) {
+      selectedBlockId = b.id;
+
+      // Find dynamically updated block from array to avoid stale values
+      const currentBlock = routineBlocks.find(item => item.id === b.id) || b;
+
+      document.getElementById('centerCategory').textContent = '선택된 활동';
+      document.getElementById('centerTitle').textContent = currentBlock.title;
+      document.getElementById('centerTime').textContent = `${mToKoreanTime(currentBlock.start)} ~ ${mToKoreanTime(currentBlock.start + currentBlock.dur)}`;
+      
+      const badge = document.getElementById('centerBadge');
+      if (badge) {
+        badge.textContent = `${formatDurationKorean(currentBlock.dur)} 진행`;
+        badge.style.color = currentBlock.color;
+        badge.style.backgroundColor = currentBlock.color + '20';
+      }
+
+      // Link Detail Card Visually with Active Block Color
+      const card = document.getElementById('selectedBlockDetailCard');
+      if (card) {
+        card.style.borderLeftColor = currentBlock.color;
+      }
+      document.getElementById('detailDot').style.backgroundColor = currentBlock.color;
+      document.getElementById('detailTitle').textContent = currentBlock.title;
+      document.getElementById('detailDuration').textContent = `${formatDurationKorean(currentBlock.dur)} 소요 (${mToTime(currentBlock.start)} ~ ${mToTime(currentBlock.start + currentBlock.dur)})`;
+      
+      // Dynamic live instruction text based on calculated timestamps
+      const dynamicDesc = getDynamicInstruction(currentBlock);
+      document.getElementById('detailInstruction').textContent = dynamicDesc;
+
+      drawCircularDial();
+    }
+
+    // Helper: generate contextual instruction text with real calculated hours
+    function getDynamicInstruction(b) {
+      const timeRange = `${mToTime(b.start)} ~ ${mToTime(b.start + b.dur)}`;
+      switch (b.id) {
+        case 'work':
+          return `${timeRange} 집중 업무 및 일과 시간. 수분 500ml 섭취 및 기립 스트레칭 병행.`;
+        case 'transit':
+          return `${timeRange} 업무 마감, 헬스장 이동 및 웜업 스트레칭. 프리웨이트 부상 방지 관절 예열.`;
+        case 'workout':
+          return `${timeRange} 웨이트 45분 (RPE 8 준수, 대근육 위주) + 유산소 ${Math.max(15, b.dur - 45)}분 (Zone 2 또는 HIIT) 결합 프로토콜.`;
+        case 'commute':
+          return `${timeRange} 즉시 귀가 및 32~35°C 미온수 샤워. 코어 체온을 쿨다운시켜 야간 멜라토닌 분비 촉진.`;
+        case 'dinner':
+          return `${timeRange} 고단백 간편식(35g 이상) 섭취. 소화 시간 확보를 위해 20:40 이전 완료 권장.`;
+        case 'winddown':
+          return `${timeRange} 최소 2시간 이상 식후 소화 및 야간 이완 시간 확보. 블루라이트 차단 및 폼롤러 스트레칭.`;
+        case 'sleep':
+          return `${timeRange} 90분 수면 주기 약 ${(b.dur / 90).toFixed(1)}회 완료. 근합성 및 대사 호르몬 정상화.`;
+        default:
+          return b.desc;
+      }
+    }
+
+    // Render Timeline Lists (Desktop Table + Mobile Accordion)
+    function renderTimelineTable() {
+      const tbody = document.getElementById('timelineTableBody');
+      const mobileList = document.getElementById('timelineMobileAccordion');
+      if (!tbody || !mobileList) return;
+
+      tbody.innerHTML = '';
+      mobileList.innerHTML = '';
+
+      routineBlocks.forEach((b, idx) => {
+        // Desktop Row with optimized widths and wrap-resistant text
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-apple-card/40 transition cursor-pointer";
+        tr.onclick = () => selectRoutineBlock(b);
+        tr.innerHTML = `
+          <td class="py-3 px-3.5 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${b.color};"></span>
+            <span class="font-bold text-white text-xs sm:text-sm whitespace-nowrap">${b.title}</span>
+          </td>
+          <td class="py-3 px-3 font-mono text-apple-cyan text-xs sm:text-sm whitespace-nowrap">
+            ${mToTime(b.start)} ~ ${mToTime(b.start + b.dur)}
+          </td>
+          <td class="py-3 px-3 text-apple-label font-medium text-xs sm:text-sm whitespace-nowrap min-w-[95px]">
+            ${formatDurationKorean(b.dur)}
+          </td>
+          <td class="py-3 px-4 text-apple-subhead text-xs sm:text-sm leading-snug">
+            ${b.desc}
+          </td>
+        `;
+        tbody.appendChild(tr);
+
+        // Mobile Accordion Card
+        const mCard = document.createElement('div');
+        mCard.className = "p-3.5 bg-apple-card rounded-xl border border-apple-elevated/40 cursor-pointer transition";
+        mCard.onclick = () => selectRoutineBlock(b);
+        mCard.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${b.color};"></span>
+              <span class="font-bold text-white text-xs sm:text-sm">${b.title}</span>
+            </div>
+            <span class="text-xs font-mono text-apple-cyan">${mToTime(b.start)} ~ ${mToTime(b.start + b.dur)}</span>
+          </div>
+          <div class="flex items-center justify-between mt-2 pt-2 border-t border-apple-surface text-xs text-apple-subhead">
+            <span>${formatDurationKorean(b.dur)} 소요</span>
+            <span class="text-[11px] text-apple-label">탭하여 선택</span>
+          </div>
+        `;
+        mobileList.appendChild(mCard);
+      });
+    }
+
+    // Time Slider Event Handler with Cascading Guardrails
+    function onTimeSliderChange() {
+      // 1. Read raw slider values
+      let leaveWork = parseInt(document.getElementById('leaveWorkSlider').value, 10);
+      let workoutStart = parseInt(document.getElementById('workoutStartSlider').value, 10);
+      let workoutDur = parseInt(document.getElementById('workoutDurSlider').value, 10);
+      let dinnerStart = parseInt(document.getElementById('dinnerStartSlider').value, 10);
+      let bedtime = parseInt(document.getElementById('bedtimeSlider').value, 10);
+      let wakeTime = parseInt(document.getElementById('wakeTimeSlider').value, 10);
+
+      // 2. Apply Logical Precedence Guardrails to prevent overlaps:
+      // Guardrail A: Workout start must be at least [leaveWork + 10m commute/warmup]
+      if (workoutStart < leaveWork + 10) {
+        workoutStart = leaveWork + 10;
+        const wsSlider = document.getElementById('workoutStartSlider');
+        if (wsSlider) wsSlider.value = workoutStart;
+      }
+
+      // Guardrail B: Workout finish time
+      const workoutEnd = workoutStart + workoutDur;
+
+      // Guardrail C: Dinner start must be after workoutEnd + at least 15m (cool down / commute)
+      if (dinnerStart < workoutEnd + 15) {
+        dinnerStart = workoutEnd + 15;
+        const dsSlider = document.getElementById('dinnerStartSlider');
+        if (dsSlider) dsSlider.value = dinnerStart;
+      }
+
+      // Guardrail D: Bedtime must allow at least 120m after dinner finishes (dinnerStart + 30m)
+      const dinnerEnd = dinnerStart + sched.dinnerDur;
+      if (bedtime < dinnerEnd + 120) {
+        bedtime = dinnerEnd + 120;
+        const btSlider = document.getElementById('bedtimeSlider');
+        if (btSlider) btSlider.value = bedtime;
+      }
+
+      // 3. Save guarded values back into sched
+      sched.leaveWork = leaveWork;
+      sched.workoutStart = workoutStart;
+      sched.workoutDur = workoutDur;
+      sched.dinnerStart = dinnerStart;
+      sched.bedtime = bedtime;
+      sched.wakeTime = wakeTime;
+
+      // Update Slider Label Displays
+      document.getElementById('leaveWorkLabel').textContent = mToTime(sched.leaveWork);
+      document.getElementById('workoutStartLabel').textContent = mToTime(sched.workoutStart);
+      document.getElementById('workoutDurLabel').textContent = `${sched.workoutDur}분`;
+      document.getElementById('dinnerStartLabel').textContent = mToTime(sched.dinnerStart);
+      document.getElementById('bedtimeLabel').textContent = mToTime(sched.bedtime);
+      const wakeLabel = document.getElementById('wakeTimeLabel');
+      if (wakeLabel) wakeLabel.textContent = mToTime(sched.wakeTime);
+
+      // Calculate Sleep Sector dynamically (bedtime to adjusted wakeTime)
+      let sleepMins = (sched.wakeTime + 1440 - sched.bedtime) % 1440;
+      const sleepH = Math.floor(sleepMins / 60);
+      const sleepM = sleepMins % 60;
+      const sleepCycles = (sleepMins / 90).toFixed(1);
+      
+      const sleepLabelEl = document.getElementById('sleepSectorLabel');
+      const sleepCycleEl = document.getElementById('sleepCycleDesc');
+      const wakeStatusEl = document.getElementById('wakeStatusBadge');
+      if (sleepLabelEl) {
+        sleepLabelEl.textContent = `${sleepH}시간 ${sleepM > 0 ? sleepM + '분' : '00분'}`;
+      }
+      if (sleepCycleEl) {
+        sleepCycleEl.textContent = `90분 수면 주기 약 ${sleepCycles}회 충족`;
+      }
+      if (wakeStatusEl) {
+        if (sleepMins < 420) {
+          wakeStatusEl.textContent = "수면 부족";
+          wakeStatusEl.className = "text-apple-orange font-semibold";
+        } else if (sleepMins <= 540) {
+          wakeStatusEl.textContent = "최적 수면";
+          wakeStatusEl.className = "text-apple-green font-semibold";
+        } else {
+          wakeStatusEl.textContent = "충분한 휴식";
+          wakeStatusEl.className = "text-apple-cyan font-semibold";
+        }
+      }
+
+      // Re-align Routine Blocks seamlessly without negative/overlapping durations
+      const workBlock = routineBlocks.find(b => b.id === 'work');
+      if (workBlock) {
+        workBlock.start = sched.workStart;
+        workBlock.dur = Math.max(120, sched.leaveWork - sched.workStart);
+      }
+
+      const transitBlock = routineBlocks.find(b => b.id === 'transit');
+      if (transitBlock) {
+        transitBlock.start = sched.leaveWork;
+        transitBlock.dur = Math.max(10, sched.workoutStart - sched.leaveWork);
+      }
+
+      const workoutBlock = routineBlocks.find(b => b.id === 'workout');
+      if (workoutBlock) {
+        workoutBlock.start = sched.workoutStart;
+        workoutBlock.dur = sched.workoutDur;
+      }
+
+      const commuteBlock = routineBlocks.find(b => b.id === 'commute');
+      if (commuteBlock) {
+        commuteBlock.start = sched.workoutStart + sched.workoutDur;
+        commuteBlock.dur = Math.max(15, sched.dinnerStart - commuteBlock.start);
+      }
+
+      const dinnerBlock = routineBlocks.find(b => b.id === 'dinner');
+      if (dinnerBlock) {
+        dinnerBlock.start = sched.dinnerStart;
+        dinnerBlock.dur = sched.dinnerDur;
+      }
+
+      const winddownBlock = routineBlocks.find(b => b.id === 'winddown');
+      if (winddownBlock) {
+        winddownBlock.start = sched.dinnerStart + sched.dinnerDur;
+        winddownBlock.dur = Math.max(60, sched.bedtime - winddownBlock.start);
+      }
+
+      const sleepBlock = routineBlocks.find(b => b.id === 'sleep');
+      if (sleepBlock) {
+        sleepBlock.start = sched.bedtime;
+        sleepBlock.dur = sleepMins;
+      }
+
+      // Update detail card and center readout if currently active block was affected
+      const currentSelected = routineBlocks.find(b => b.id === selectedBlockId);
+      if (currentSelected) {
+        selectRoutineBlock(currentSelected);
+      } else {
+        drawCircularDial();
+      }
+
+      renderTimelineTable();
+      renderTopSummary();
+    }
+
+    // Apply Workout Preset
+    function applyWorkoutPreset(dur) {
+      sched.workoutDur = dur;
+      const durSlider = document.getElementById('workoutDurSlider');
+      if (durSlider) durSlider.value = dur;
+
+      [60, 80, 100, 120].forEach(val => {
+        const btn = document.getElementById(`presetBtn${val}`);
+        if (btn) {
+          if (val === dur) {
+            btn.className = "preset-btn text-left p-2.5 sm:p-3 rounded-xl bg-apple-elevated transition border border-apple-green/30";
+          } else {
+            btn.className = "preset-btn text-left p-2.5 sm:p-3 rounded-xl bg-apple-card hover:bg-apple-cardHover transition border border-transparent";
+          }
+        }
+      });
+
+      const tag = document.getElementById('currentCourseTag');
+      if (tag) {
+        tag.textContent = `${dur}분 코스`;
+        tag.className = dur === 100
+          ? "text-xs font-semibold text-apple-green bg-apple-green/10 px-2 py-0.5 rounded-md"
+          : "text-xs font-semibold text-apple-blue bg-apple-blue/10 px-2 py-0.5 rounded-md";
+      }
+
+      onTimeSliderChange();
+    }
+
+    // Reset Routine to Default
+    function resetToDefault() {
+      document.getElementById('leaveWorkSlider').value = 1050;
+      document.getElementById('workoutStartSlider').value = 1080;
+      document.getElementById('workoutDurSlider').value = 100;
+      document.getElementById('dinnerStartSlider').value = 1210;
+      document.getElementById('bedtimeSlider').value = 1380;
+      const wakeSlider = document.getElementById('wakeTimeSlider');
+      if (wakeSlider) wakeSlider.value = 420;
+      applyWorkoutPreset(100);
+    }
+
+    // ================= WORKOUT PROGRAM LOGIC =================
+    function switchWorkoutDay(dayKey) {
+      currentWorkoutDay = dayKey;
+      ['mon', 'tue', 'wed', 'thu', 'fri'].forEach(d => {
+        const b = document.getElementById(`dayBtn_${d}`);
+        if (b) {
+          if (d === dayKey) {
+            b.className = "px-2.5 py-1 rounded-lg bg-apple-elevated text-white font-semibold";
+          } else {
+            b.className = "px-2.5 py-1 rounded-lg text-apple-label hover:text-white";
+          }
+        }
+      });
+
+      const plan = workoutsByDay[dayKey];
+      document.getElementById('workoutDayTitle').textContent = plan.title;
+      document.getElementById('workoutDayFocus').textContent = plan.focus;
+      document.getElementById('cardioTypeTag').textContent = plan.cardioType;
+      document.getElementById('cardioInstruction').textContent = plan.cardioDesc;
+
+      isCardioDone = false;
+      const cardioBtn = document.getElementById('cardioCompleteBtn');
+      if (cardioBtn) {
+        cardioBtn.textContent = "유산소 완료 체크";
+        cardioBtn.className = "px-3.5 py-2 rounded-xl bg-apple-elevated hover:bg-apple-cardHover text-xs font-semibold text-white transition flex-shrink-0";
+      }
+
+      renderExercisesList();
+      renderTopSummary();
+    }
+
+    function renderExercisesList() {
+      const container = document.getElementById('exerciseListContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const plan = workoutsByDay[currentWorkoutDay];
+      let totalSets = 0, doneSets = 0;
+
+      plan.exercises.forEach((ex, exIdx) => {
+        totalSets += ex.sets;
+        doneSets += ex.done.filter(Boolean).length;
+
+        const row = document.createElement('div');
+        row.className = "p-3 sm:p-3.5 bg-apple-card rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5";
+
+        let setsHtml = '';
+        for (let s = 0; s < ex.sets; s++) {
+          const isDone = ex.done[s];
+          setsHtml += `
+            <button onclick="handleCascadingSetClick(${exIdx}, ${s})" class="w-9 h-9 rounded-lg text-xs sm:text-sm font-bold transition flex items-center justify-center ${isDone ? 'bg-apple-green text-black' : 'bg-apple-surface text-apple-label hover:text-white'}">
+              ${isDone ? '✓' : (s + 1)}
+            </button>
+          `;
+        }
+
+        row.innerHTML = `
+          <div>
+            <span class="text-sm font-bold text-white">${ex.name}</span>
+            <span class="text-xs text-apple-label ml-2">${ex.target}</span>
+          </div>
+          <div class="flex items-center gap-2">${setsHtml}</div>
+        `;
+        container.appendChild(row);
+      });
+
+      const badge = document.getElementById('workoutCompletedBadge');
+      if (badge) {
+        badge.textContent = `${doneSets} / ${totalSets} 세트 완료`;
+        badge.className = doneSets === totalSets
+          ? "text-xs sm:text-sm font-semibold px-2.5 py-1 rounded-lg bg-apple-green/10 text-apple-green"
+          : "text-xs sm:text-sm font-semibold px-2.5 py-1 rounded-lg bg-apple-card text-apple-label";
+      }
+    }
+
+    // Cascading Check: clicking set 3 marks 1, 2, and 3 as done
+    function handleCascadingSetClick(exIdx, setIdx) {
+      const plan = workoutsByDay[currentWorkoutDay];
+      const doneArr = plan.exercises[exIdx].done;
+
+      // If clicked set is not done, check everything up to setIdx
+      if (!doneArr[setIdx]) {
+        for (let s = 0; s <= setIdx; s++) {
+          doneArr[s] = true;
+        }
+        startRestTimer(60);
+      } else {
+        // If clicking the current latest done set, uncheck it and any after it
+        for (let s = setIdx; s < doneArr.length; s++) {
+          doneArr[s] = false;
+        }
+      }
+
+      renderExercisesList();
+      renderTopSummary();
+    }
+
+    // Reset Day Workouts
+    function resetDayWorkouts() {
+      const plan = workoutsByDay[currentWorkoutDay];
+      plan.exercises.forEach(ex => {
+        ex.done = [false, false, false, false];
+      });
+      isCardioDone = false;
+      const cardioBtn = document.getElementById('cardioCompleteBtn');
+      if (cardioBtn) {
+        cardioBtn.textContent = "유산소 완료 체크";
+        cardioBtn.className = "px-3.5 py-2 rounded-xl bg-apple-elevated hover:bg-apple-cardHover text-xs font-semibold text-white transition flex-shrink-0";
+      }
+      resetRestTimer();
+      renderExercisesList();
+      renderTopSummary();
+    }
+
+    function toggleCardioComplete() {
+      isCardioDone = !isCardioDone;
+      const btn = document.getElementById('cardioCompleteBtn');
+      if (btn) {
+        btn.textContent = isCardioDone ? "유산소 완료됨 ✓" : "유산소 완료 체크";
+        btn.className = isCardioDone
+          ? "px-3.5 py-2 rounded-xl bg-apple-green text-black text-xs font-semibold transition flex-shrink-0"
+          : "px-3.5 py-2 rounded-xl bg-apple-elevated hover:bg-apple-cardHover text-xs font-semibold text-white transition flex-shrink-0";
+      }
+      renderTopSummary();
+    }
+
+    // Live Rest Timer
+    function startRestTimer(secs) {
+      clearInterval(restTimerInterval);
+      restSecondsLeft = secs;
+      updateRestTimerDisplays();
+
+      restTimerInterval = setInterval(() => {
+        restSecondsLeft--;
+        if (restSecondsLeft <= 0) {
+          clearInterval(restTimerInterval);
+          restSecondsLeft = 0;
+        }
+        updateRestTimerDisplays();
+      }, 1000);
+    }
+
+    function resetRestTimer() {
+      clearInterval(restTimerInterval);
+      restSecondsLeft = 0;
+      updateRestTimerDisplays();
+    }
+
+    function updateRestTimerDisplays() {
+      const m = Math.floor(restSecondsLeft / 60);
+      const s = restSecondsLeft % 60;
+      const text = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      
+      const el = document.getElementById('restTimerDisplay');
+      if (el) el.textContent = text;
+      
+      const headEl = document.getElementById('headerRestTimerDisplay');
+      if (headEl) headEl.textContent = restSecondsLeft > 0 ? `${restSecondsLeft}s` : '60초';
+    }
+
+    // ================= DIET & INVENTORY LOGIC =================
+    function resetDietChecklist() {
+      dietItems.forEach(item => {
+        item.checked = false;
+      });
+      renderDietChecklist();
+      renderTopSummary();
+    }
+
+    function renderDietChecklist() {
+      const container = document.getElementById('dietChecklistContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      dietItems.forEach((d, idx) => {
+        const item = document.createElement('div');
+        item.className = `p-3.5 rounded-2xl bg-apple-card flex items-center justify-between transition cursor-pointer border ${d.checked ? 'border-apple-card bg-apple-surface/80' : 'border-transparent hover:border-apple-elevated'}`;
+        item.onclick = () => toggleDietItem(idx);
+
+        const mappedInv = d.invId ? inventory.find(i => i.id === d.invId) : null;
+        const invTag = mappedInv 
+          ? `<span class="text-xs text-apple-cyan font-semibold font-mono bg-apple-cyan/10 px-2 py-0.5 rounded-md">${mappedInv.name.split(' ')[0]} ${mappedInv.count}${mappedInv.unit}</span>` 
+          : '<span class="text-xs text-apple-label bg-apple-surface px-2 py-0.5 rounded-md">외부 식사</span>';
+
+        item.innerHTML = `
+          <div class="flex items-center gap-3">
+            <button class="w-6 h-6 rounded-lg flex items-center justify-center transition ${d.checked ? 'bg-apple-green text-black' : 'border border-apple-elevated bg-apple-surface text-transparent'}">
+              ✓
+            </button>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono text-apple-label">${d.time}</span>
+                <span class="text-xs sm:text-sm font-bold ${d.checked ? 'line-through text-apple-label' : 'text-white'}">${d.name}</span>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                ${invTag}
+                <span class="text-xs font-mono text-apple-subhead">${d.cal} kcal | 단백질 ${d.pro}g</span>
+              </div>
+            </div>
+          </div>
+          <span class="text-xs ${d.checked ? 'text-apple-green font-semibold' : 'text-apple-label'}">
+            ${d.checked ? '섭취 완료' : '대기'}
+          </span>
+        `;
+        container.appendChild(item);
+      });
+
+      updateDietMacros();
+    }
+
+    function toggleDietItem(idx) {
+      const item = dietItems[idx];
+      item.checked = !item.checked;
+
+      // Link to refrigerator inventory: deduct or restore quantity
+      if (item.invId) {
+        const mapped = inventory.find(i => i.id === item.invId);
+        if (mapped) {
+          const qty = item.invQty || 1;
+          if (item.checked) {
+            mapped.count = Math.max(0, mapped.count - qty);
+          } else {
+            mapped.count += qty;
+          }
+          renderInventoryList();
+        }
+      }
+
+      renderDietChecklist();
+      renderTopSummary();
+    }
+
+    function selectDinnerSet(setKey) {
+      selectedDinnerSet = setKey;
+      ['A', 'B', 'C'].forEach(k => {
+        const card = document.getElementById(`dinnerSetCard${k}`);
+        if (card) {
+          if (k === setKey) {
+            card.className = "p-3.5 rounded-xl bg-apple-elevated border border-apple-green/40 cursor-pointer transition";
+          } else {
+            card.className = "p-3.5 rounded-xl bg-apple-card hover:bg-apple-cardHover border border-transparent cursor-pointer transition";
+          }
+        }
+      });
+
+      const dinnerItem = dietItems.find(d => d.id === 'd_dinner');
+      if (dinnerItem) {
+        if (setKey === 'A') {
+          dinnerItem.name = '저녁 간편식 세트 A (볶음밥+닭가슴살)';
+          dinnerItem.cal = 510;
+          dinnerItem.pro = 47;
+          dinnerItem.invId = 'inv_rice';
+        } else if (setKey === 'B') {
+          dinnerItem.name = '저녁 간편식 세트 B (더담은 도시락+계란)';
+          dinnerItem.cal = 470;
+          dinnerItem.pro = 37;
+          dinnerItem.invId = 'inv_box';
+        } else if (setKey === 'C') {
+          dinnerItem.name = '저녁 간편식 세트 C (햇반소+닭+계란 2알)';
+          dinnerItem.cal = 540;
+          dinnerItem.pro = 52;
+          dinnerItem.invId = 'inv_chicken';
+        }
+      }
+
+      renderDietChecklist();
+      renderTopSummary();
+    }
+
+    function updateDietMacros() {
+      let totalCal = 0, totalPro = 0, checkedCount = 0;
+      dietItems.forEach(i => {
+        if (i.checked) {
+          totalCal += i.cal;
+          totalPro += i.pro;
+          checkedCount++;
+        }
+      });
+
+      const calEl = document.getElementById('dietHeaderCalorie');
+      const proEl = document.getElementById('dietHeaderProtein');
+      const rateEl = document.getElementById('dietHeaderRate');
+      const calProg = document.getElementById('dietCalorieProgress');
+      const proProg = document.getElementById('dietProteinProgress');
+
+      if (calEl) calEl.textContent = totalCal.toLocaleString();
+      if (proEl) proEl.textContent = totalPro;
+      if (rateEl) {
+        const pct = Math.round((checkedCount / dietItems.length) * 100);
+        rateEl.textContent = `${pct}%`;
+      }
+      if (calProg) calProg.style.width = `${Math.min(100, (totalCal / 1700) * 100)}%`;
+      if (proProg) proProg.style.width = `${Math.min(100, (totalPro / 160) * 100)}%`;
+
+      const lowStockItems = inventory.filter(i => i.count <= 3);
+      const stockStatusEl = document.getElementById('dietHeaderStockStatus');
+      const stockDescEl = document.getElementById('dietHeaderStockDesc');
+      if (stockStatusEl && stockDescEl) {
+        if (lowStockItems.length > 0) {
+          stockStatusEl.textContent = `재발주 필요 (${lowStockItems.length}건)`;
+          stockStatusEl.className = "text-lg sm:text-xl font-bold text-apple-orange";
+          stockDescEl.textContent = lowStockItems.map(i => i.name.split(' ')[0]).join(', ');
+        } else {
+          stockStatusEl.textContent = "비축 여유";
+          stockStatusEl.className = "text-lg sm:text-xl font-bold text-apple-green";
+          stockDescEl.textContent = "재발주 필요 품목 없음";
+        }
+      }
+    }
+
+    // Inventory Rendering & Management with Clean Individual Inline Editing & Batch Actions
+    function renderInventoryList() {
+      const container = document.getElementById('inventoryListContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (inventory.length === 0) {
+        container.innerHTML = `
+          <div class="p-6 bg-apple-card rounded-2xl text-center space-y-2 border border-apple-elevated/30">
+            <p class="text-xs sm:text-sm text-apple-label">등록된 비축 식단이 없습니다.</p>
+            <button onclick="resetInventoryToDefault()" class="text-xs text-apple-cyan hover:underline font-semibold">
+              ↺ 초기 기본 품목 불러오기
+            </button>
+          </div>
+        `;
+        updateDietMacros();
+        return;
+      }
+
+      inventory.forEach((item, idx) => {
+        const isEditing = (editingInvId === item.id);
+        const isLow = item.count <= 3;
+        const isSelected = selectedInvIds.has(item.id);
+
+        const row = document.createElement('div');
+        row.className = `p-3.5 sm:p-4 bg-apple-card rounded-2xl border transition ${isSelected ? 'border-apple-cyan/60 bg-apple-surface/90' : 'border-apple-elevated/40'}`;
+
+        if (isEditing) {
+          // Inline micro-form for this item only
+          row.innerHTML = `
+            <div class="space-y-3">
+              <div class="flex items-center justify-between gap-2 border-b border-apple-surface pb-2">
+                <span class="text-xs font-bold text-apple-cyan">품목 정보 수정</span>
+                <button onclick="deleteInventoryItem(${idx})" class="text-xs text-apple-red hover:underline font-semibold flex items-center gap-1">
+                  <span>🗑️</span> 삭제
+                </button>
+              </div>
+              <div>
+                <label class="text-[11px] text-apple-label block mb-1">품목명</label>
+                <input type="text" value="${item.name}" onchange="updateInvField(${idx}, 'name', this.value)" class="w-full bg-apple-surface px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-white border border-apple-elevated focus:outline-none focus:border-apple-cyan">
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label class="text-[11px] text-apple-label block mb-1">칼로리 (kcal)</label>
+                  <input type="number" value="${item.cal || 0}" onchange="updateInvField(${idx}, 'cal', this.value)" class="w-full bg-apple-surface px-2.5 py-1.5 rounded-lg text-white font-mono text-xs border border-apple-elevated focus:outline-none">
+                </div>
+                <div>
+                  <label class="text-[11px] text-apple-label block mb-1">단백질 (g)</label>
+                  <input type="number" value="${item.pro || 0}" onchange="updateInvField(${idx}, 'pro', this.value)" class="w-full bg-apple-surface px-2.5 py-1.5 rounded-lg text-apple-green font-mono text-xs border border-apple-elevated focus:outline-none">
+                </div>
+              </div>
+              <div class="flex justify-end pt-1">
+                <button onclick="toggleEditItem('${item.id}')" class="px-3.5 py-1.5 rounded-lg bg-apple-elevated hover:bg-apple-surface text-white text-xs font-semibold transition">
+                  완료
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          // Standard Clean View with Batch Checkbox support
+          const checkboxHtml = isInvBatchMode ? `
+            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectInventoryItem('${item.id}', this.checked)" class="w-4 h-4 rounded bg-apple-surface border-apple-elevated text-apple-cyan focus:ring-0 mr-2.5 cursor-pointer flex-shrink-0">
+          ` : '';
+
+          row.innerHTML = `
+            <div class="flex items-center justify-between">
+              <div class="flex items-center min-w-0 pr-2">
+                ${checkboxHtml}
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm sm:text-base font-bold text-white truncate">${item.name}</span>
+                    ${!isInvBatchMode ? `
+                      <button onclick="toggleEditItem('${item.id}')" title="이 품목 수정" class="text-apple-label hover:text-apple-cyan transition text-xs p-1">
+                        ✏️
+                      </button>
+                    ` : ''}
+                  </div>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="text-xs ${isLow ? 'text-apple-orange font-semibold bg-apple-orange/10 px-2 py-0.5 rounded' : 'text-apple-label bg-apple-surface px-2 py-0.5 rounded'}">
+                      ${isLow ? '⚠️ 재발주 필요' : '재고 안정'}
+                    </span>
+                    <span class="text-xs text-apple-subhead font-mono">${item.cal || 0} kcal | 단백질 ${item.pro || 0}g</span>
+                  </div>
+                </div>
+              </div>
+              <!-- Stepper Controls -->
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <span class="text-lg sm:text-xl font-bold ${isLow ? 'text-apple-orange' : 'text-white'} font-mono w-7 text-right">${item.count}</span>
+                <span class="text-xs text-apple-label font-medium mr-1.5">${item.unit}</span>
+                <button onclick="adjustInventoryCount(${idx}, -1)" class="w-7 h-7 rounded-lg bg-apple-surface hover:bg-apple-elevated text-xs font-bold text-white transition flex items-center justify-center">-</button>
+                <button onclick="adjustInventoryCount(${idx}, 1)" class="w-7 h-7 rounded-lg bg-apple-surface hover:bg-apple-elevated text-xs font-bold text-white transition flex items-center justify-center">+</button>
+              </div>
+            </div>
+          `;
+        }
+        container.appendChild(row);
+      });
+
+      updateDietMacros();
+    }
+
+    // Toggle Batch Select Mode
+    function toggleInventoryBatchMode() {
+      isInvBatchMode = !isInvBatchMode;
+      const bar = document.getElementById('inventoryBatchActionBar');
+      const btn = document.getElementById('invBatchModeBtn');
+      if (bar) bar.classList.toggle('hidden', !isInvBatchMode);
+      if (btn) {
+        btn.textContent = isInvBatchMode ? "선택 닫기" : "선택 관리";
+        btn.className = isInvBatchMode 
+          ? "text-xs px-2.5 py-1.5 rounded-lg bg-apple-elevated text-apple-cyan font-semibold transition"
+          : "text-xs px-2.5 py-1.5 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-label hover:text-white transition font-medium";
+      }
+      if (!isInvBatchMode) {
+        selectedInvIds.clear();
+      }
+      updateBatchUI();
+      renderInventoryList();
+    }
+
+    function toggleSelectInventoryItem(id, isChecked) {
+      if (isChecked) {
+        selectedInvIds.add(id);
+      } else {
+        selectedInvIds.delete(id);
+      }
+      updateBatchUI();
+      renderInventoryList();
+    }
+
+    function toggleSelectAllInventory(isChecked) {
+      if (isChecked) {
+        inventory.forEach(i => selectedInvIds.add(i.id));
+      } else {
+        selectedInvIds.clear();
+      }
+      updateBatchUI();
+      renderInventoryList();
+    }
+
+    function updateBatchUI() {
+      const countEl = document.getElementById('selectedInvCountBadge');
+      const allCheckbox = document.getElementById('selectAllInvCheckbox');
+      if (countEl) countEl.textContent = `${selectedInvIds.size}개 선택`;
+      if (allCheckbox) {
+        allCheckbox.checked = (inventory.length > 0 && selectedInvIds.size === inventory.length);
+      }
+    }
+
+    // Batch Action: Delete Selected Items
+    function deleteSelectedInventory() {
+      if (selectedInvIds.size === 0) return;
+      inventory = inventory.filter(i => !selectedInvIds.has(i.id));
+      
+      // Clean up linked checklist items
+      dietItems.forEach(d => {
+        if (d.invId && selectedInvIds.has(d.invId)) {
+          d.invId = null;
+        }
+      });
+
+      selectedInvIds.clear();
+      updateBatchUI();
+      renderInventoryList();
+      renderDietChecklist();
+      renderTopSummary();
+    }
+
+    // Batch Action: Delete All Items
+    function deleteAllInventory() {
+      inventory = [];
+      selectedInvIds.clear();
+      dietItems.forEach(d => { d.invId = null; });
+      updateBatchUI();
+      renderInventoryList();
+      renderDietChecklist();
+      renderTopSummary();
+    }
+
+    // Reset Inventory to Default Baseline
+    function resetInventoryToDefault() {
+      inventory = JSON.parse(JSON.stringify(defaultInventoryPreset));
+      selectedInvIds.clear();
+      editingInvId = null;
+      if (isInvBatchMode) toggleInventoryBatchMode();
+
+      // Relink standard checklist items
+      if (dietItems[0]) dietItems[0].invId = 'inv_whey';
+      if (dietItems[2]) dietItems[2].invId = 'inv_egg';
+      if (dietItems[3]) dietItems[3].invId = 'inv_gel';
+      if (dietItems[4]) {
+        dietItems[4].invId = 'inv_rice';
+        dietItems[4].name = '저녁 간편식 세트 A (볶음밥+닭가슴살)';
+        dietItems[4].cal = 510;
+        dietItems[4].pro = 47;
+      }
+
+      renderInventoryList();
+      renderDietChecklist();
+      renderTopSummary();
+    }
+
+    function toggleEditItem(itemId) {
+      editingInvId = (editingInvId === itemId) ? null : itemId;
+      renderInventoryList();
+    }
+
+    function toggleAddItemForm() {
+      const form = document.getElementById('inventoryAddForm');
+      const btn = document.getElementById('inventoryAddToggleBtn');
+      if (form) {
+        const isHidden = form.classList.toggle('hidden');
+        if (btn) btn.textContent = isHidden ? "+ 품목 추가" : "닫기";
+      }
+    }
+
+    function adjustInventoryCount(idx, delta) {
+      inventory[idx].count = Math.max(0, inventory[idx].count + delta);
+      renderInventoryList();
+      renderTopSummary();
+    }
+
+    function updateInvField(idx, field, val) {
+      const item = inventory[idx];
+      if (field === 'count' || field === 'cal' || field === 'pro') {
+        item[field] = Math.max(0, parseInt(val, 10) || 0);
+      } else {
+        item[field] = val;
+      }
+
+      // Synchronize changes to any mapped diet checklist items
+      dietItems.forEach(d => {
+        if (d.invId === item.id) {
+          const qty = d.invQty || 1;
+          d.cal = (item.cal || 0) * qty;
+          d.pro = (item.pro || 0) * qty;
+          if (field === 'name') {
+            d.name = `${item.name} (${qty}${item.unit})`;
+          }
+        }
+      });
+
+      renderDietChecklist();
+      renderInventoryList();
+      renderTopSummary();
+    }
+
+    function deleteInventoryItem(idx) {
+      const removed = inventory.splice(idx, 1)[0];
+      if (editingInvId === removed.id) {
+        editingInvId = null;
+      }
+      dietItems.forEach(d => {
+        if (d.invId === removed.id) {
+          d.invId = null;
+        }
+      });
+      renderDietChecklist();
+      renderInventoryList();
+      renderTopSummary();
+    }
+
+    function addInventoryItem() {
+      const name = document.getElementById('newInvName').value.trim();
+      const count = parseInt(document.getElementById('newInvCount').value, 10) || 0;
+      const unit = document.getElementById('newInvUnit').value.trim() || '팩';
+      const cal = parseInt(document.getElementById('newInvCal').value, 10) || 0;
+      const pro = parseInt(document.getElementById('newInvPro').value, 10) || 0;
+      if (!name) return;
+
+      inventory.push({ id: `inv_${Date.now()}`, name, count, unit, cal, pro });
+      document.getElementById('newInvName').value = '';
+      document.getElementById('newInvCount').value = '';
+      document.getElementById('newInvCal').value = '';
+      document.getElementById('newInvPro').value = '';
+      toggleAddItemForm();
+      renderInventoryList();
+      renderTopSummary();
+    }
+
+    // ================= 11-WEEK MILESTONE TRACKER LOGIC =================
+    function renderTrajectoryGraph() {
+      const svg = document.getElementById('trajectorySvg');
+      if (!svg) return;
+      svg.innerHTML = '';
+
+      const width = 760;
+      const height = 160;
+      const padLeft = 45;
+      const padRight = 30;
+      const padTop = 20;
+      const padBottom = 25;
+
+      const minW = 78.0;
+      const maxW = 93.0;
+
+      const getX = (idx) => padLeft + (idx / (milestones.length - 1)) * (width - padLeft - padRight);
+      const getY = (val) => padTop + ((maxW - val) / (maxW - minW)) * (height - padTop - padBottom);
+
+      // Horizontal grid lines
+      [90, 85, 80].forEach(level => {
+        const y = getY(level);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', padLeft);
+        line.setAttribute('x2', width - padRight);
+        line.setAttribute('y1', y);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', '#2c2c2e');
+        line.setAttribute('stroke-width', '1');
+        line.setAttribute('stroke-dasharray', '3 3');
+        svg.appendChild(line);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', padLeft - 8);
+        text.setAttribute('y', y + 3.5);
+        text.setAttribute('fill', '#86868b');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('text-anchor', 'end');
+        text.setAttribute('font-family', 'monospace');
+        text.textContent = `${level}kg`;
+        svg.appendChild(text);
+      });
+
+      // Target weight curve (Dashed gray)
+      let targetPathD = '';
+      milestones.forEach((m, idx) => {
+        const x = getX(idx);
+        const y = getY(m.targetW);
+        targetPathD += (idx === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+      });
+      const targetPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      targetPath.setAttribute('d', targetPathD);
+      targetPath.setAttribute('fill', 'none');
+      targetPath.setAttribute('stroke', '#48484a');
+      targetPath.setAttribute('stroke-width', '2');
+      targetPath.setAttribute('stroke-dasharray', '4 4');
+      svg.appendChild(targetPath);
+
+      // Actual weight line & dots (Apple Cyan)
+      let actualPoints = [];
+      milestones.forEach((m, idx) => {
+        if (m.actualW !== null) {
+          actualPoints.push({ x: getX(idx), y: getY(m.actualW), week: m.week, actualW: m.actualW, targetW: m.targetW });
+        }
+      });
+
+      if (actualPoints.length > 1) {
+        let actualPathD = '';
+        actualPoints.forEach((pt, i) => {
+          actualPathD += (i === 0 ? `M ${pt.x} ${pt.y}` : ` L ${pt.x} ${pt.y}`);
+        });
+        const actualPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        actualPath.setAttribute('d', actualPathD);
+        actualPath.setAttribute('fill', 'none');
+        actualPath.setAttribute('stroke', '#64d2ff');
+        actualPath.setAttribute('stroke-width', '2.5');
+        actualPath.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(actualPath);
+      }
+
+      // X-Axis Week Labels & Actual Dots
+      milestones.forEach((m, idx) => {
+        const x = getX(idx);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', height - 6);
+        text.setAttribute('fill', '#86868b');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('text-anchor', 'middle');
+        text.textContent = m.week;
+        svg.appendChild(text);
+
+        // Actual dot if measured
+        if (m.actualW !== null) {
+          const y = getY(m.actualW);
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('cx', x);
+          circle.setAttribute('cy', y);
+          circle.setAttribute('r', '4.5');
+          circle.setAttribute('fill', '#64d2ff');
+          circle.setAttribute('stroke', '#000000');
+          circle.setAttribute('stroke-width', '2');
+          circle.setAttribute('class', 'cursor-pointer hover:r-6 transition');
+          
+          circle.onmouseenter = () => {
+            const diff = (m.actualW - m.targetW).toFixed(1);
+            const tooltip = document.getElementById('chartTooltip');
+            if (tooltip) {
+              tooltip.textContent = `${m.week}: 실제 ${m.actualW}kg (목표 ${m.targetW}kg, ${diff > 0 ? '+'+diff : diff}kg)`;
+            }
+          };
+          circle.onmouseleave = () => {
+            const tooltip = document.getElementById('chartTooltip');
+            if (tooltip) tooltip.textContent = '';
+          };
+
+          svg.appendChild(circle);
+        }
+      });
+    }
+
+    function renderMilestoneTable() {
+      const tbody = document.getElementById('milestoneTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      milestones.forEach((m, idx) => {
+        const isBaseline = idx === 0;
+        let deltaHtml = '<span class="text-apple-label font-mono text-xs sm:text-sm">-</span>';
+        let statusBadge = '<span class="px-2 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-card text-apple-label">대기</span>';
+
+        if (isBaseline) {
+          statusBadge = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-blue/20 text-apple-cyan">기준점</span>';
+        } else if (m.actualW !== null) {
+          const delta = (m.actualW - m.targetW).toFixed(1);
+          if (delta < -1.0) {
+            deltaHtml = `<span class="text-apple-orange font-bold font-mono text-xs sm:text-base">${delta}kg</span>`;
+            statusBadge = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-orange/15 text-apple-orange">감량 가속</span>';
+          } else if (delta <= 0.4) {
+            deltaHtml = `<span class="text-apple-green font-bold font-mono text-xs sm:text-base">${delta > 0 ? '+'+delta : delta}kg</span>`;
+            statusBadge = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-green/15 text-apple-green">목표 궤도</span>';
+          } else if (delta <= 1.0) {
+            deltaHtml = `<span class="text-apple-orange font-bold font-mono text-xs sm:text-base">+${delta}kg</span>`;
+            statusBadge = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-orange/15 text-apple-orange">진행 지연</span>';
+          } else {
+            deltaHtml = `<span class="text-apple-red font-bold font-mono text-xs sm:text-base">+${delta}kg</span>`;
+            statusBadge = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-red/15 text-apple-red">조정 필요</span>';
+          }
+        }
+
+        const inputBaseClass = "w-[48px] min-w-[48px] bg-[#1e1e20] text-center px-1 py-1 rounded-lg text-xs sm:text-sm font-mono border border-[#3a3a3c] text-white focus:outline-none focus:border-apple-cyan focus:ring-1 focus:ring-apple-cyan transition";
+
+        const tr = document.createElement('tr');
+        tr.id = `milestone_row_${idx}`;
+        tr.className = "hover:bg-apple-card/40 transition";
+        tr.innerHTML = `
+          <td class="py-3 px-2 font-bold text-white text-xs sm:text-sm">${m.week}</td>
+          <td class="py-3 px-2 text-apple-subhead text-xs sm:text-sm truncate" title="${m.focus}">${m.focus}</td>
+          <td class="py-3 px-2 font-mono font-bold text-white text-xs sm:text-base">${m.targetW.toFixed(1)}kg</td>
+          <!-- Weight Stepper Cell with Perfectly Contained Width -->
+          <td class="py-3 px-2">
+            <div class="w-[126px] min-w-[126px] overflow-hidden inline-flex items-center justify-between gap-1 bg-[#161618] px-2 py-1 rounded-xl border border-apple-elevated">
+              <button onclick="stepActualWeight(${idx}, -0.5)" class="w-6 h-6 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-subhead hover:text-white text-xs font-bold transition flex items-center justify-center flex-shrink-0">-</button>
+              <input type="number" step="0.1" id="actual_w_input_${idx}" value="${m.actualW !== null ? m.actualW : ''}" placeholder="${m.targetW.toFixed(1)}" oninput="onActualWeightChange(${idx}, this.value)" class="${inputBaseClass}">
+              <button onclick="stepActualWeight(${idx}, 0.5)" class="w-6 h-6 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-subhead hover:text-white text-xs font-bold transition flex items-center justify-center flex-shrink-0">+</button>
+            </div>
+          </td>
+          <td id="delta_cell_${idx}" class="py-3 px-2 text-center w-[85px]">${deltaHtml}</td>
+          <td class="py-3 px-2 font-mono text-apple-label text-xs sm:text-base">${m.targetWaist.toFixed(1)}cm</td>
+          <!-- Waist Stepper Cell with Perfectly Contained Width -->
+          <td class="py-3 px-2">
+            <div class="w-[126px] min-w-[126px] overflow-hidden inline-flex items-center justify-between gap-1 bg-[#161618] px-2 py-1 rounded-xl border border-apple-elevated">
+              <button onclick="stepActualWaist(${idx}, -1.0)" class="w-6 h-6 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-subhead hover:text-white text-xs font-bold transition flex items-center justify-center flex-shrink-0">-</button>
+              <input type="number" step="0.5" id="actual_waist_input_${idx}" value="${m.actualWaist !== null ? m.actualWaist : ''}" placeholder="${m.targetWaist.toFixed(1)}" oninput="onActualWaistChange(${idx}, this.value)" class="${inputBaseClass}">
+              <button onclick="stepActualWaist(${idx}, 1.0)" class="w-6 h-6 rounded-lg bg-apple-card hover:bg-apple-elevated text-apple-subhead hover:text-white text-xs font-bold transition flex items-center justify-center flex-shrink-0">+</button>
+            </div>
+          </td>
+          <!-- InBody Columns -->
+          <td class="py-3 px-2 inbody-col ${isInBodyMode ? '' : 'hidden'} font-mono text-apple-label text-xs sm:text-base">${m.targetFat.toFixed(1)}%</td>
+          <td class="py-3 px-2 inbody-col ${isInBodyMode ? '' : 'hidden'}">
+            <input type="number" step="0.1" value="${m.actualFat !== null ? m.actualFat : ''}" placeholder="${m.targetFat.toFixed(1)}" oninput="onActualFatChange(${idx}, this.value)" class="w-14 sm:w-16 bg-[#1e1e20] text-center px-1 py-1 rounded-lg text-xs sm:text-sm font-mono border border-[#3a3a3c] text-white focus:outline-none focus:border-apple-cyan">
+          </td>
+          <td class="py-3 px-2 inbody-col ${isInBodyMode ? '' : 'hidden'} font-mono text-apple-label text-xs sm:text-base">${m.targetSmm.toFixed(1)}kg</td>
+          <td class="py-3 px-2 inbody-col ${isInBodyMode ? '' : 'hidden'}">
+            <input type="number" step="0.1" value="${m.actualSmm !== null ? m.actualSmm : ''}" placeholder="${m.targetSmm.toFixed(1)}" oninput="onActualSmmChange(${idx}, this.value)" class="w-14 sm:w-16 bg-[#1e1e20] text-center px-1 py-1 rounded-lg text-xs sm:text-sm font-mono border border-[#3a3a3c] text-white focus:outline-none focus:border-apple-cyan">
+          </td>
+          <td id="status_cell_${idx}" class="py-3 px-2 text-right">${statusBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      renderTrajectoryGraph();
+    }
+
+    // Stepper function for actual weight (±0.5kg)
+    function stepActualWeight(idx, delta) {
+      let current = milestones[idx].actualW;
+      if (current === null) {
+        current = milestones[idx].targetW;
+      }
+      const nextVal = Math.round((current + delta) * 10) / 10;
+      milestones[idx].actualW = nextVal;
+      
+      const input = document.getElementById(`actual_w_input_${idx}`);
+      if (input) input.value = nextVal.toFixed(1);
+
+      onActualWeightChange(idx, nextVal);
+    }
+
+    // Stepper function for actual waist (±1.0cm)
+    function stepActualWaist(idx, delta) {
+      let current = milestones[idx].actualWaist;
+      if (current === null) {
+        current = milestones[idx].targetWaist;
+      }
+      const nextVal = Math.round((current + delta) * 10) / 10;
+      milestones[idx].actualWaist = nextVal;
+
+      const input = document.getElementById(`actual_waist_input_${idx}`);
+      if (input) input.value = nextVal.toFixed(1);
+
+      onActualWaistChange(idx, nextVal);
+      renderTopSummary();
+    }
+
+    function onActualWeightChange(idx, val) {
+      const num = parseFloat(val);
+      milestones[idx].actualW = isNaN(num) ? null : num;
+
+      // If baseline changed, re-scale target curves and update all target cells
+      if (idx === 0 && !isNaN(num)) {
+        const offset = num - 91.1;
+        for (let i = 1; i < milestones.length; i++) {
+          milestones[i].targetW = Math.round((milestones[i].targetW + offset) * 10) / 10;
+        }
+      }
+
+      // Smooth in-place DOM update without flickering re-render
+      const deltaCell = document.getElementById(`delta_cell_${idx}`);
+      const statusCell = document.getElementById(`status_cell_${idx}`);
+      if (deltaCell && statusCell && idx > 0) {
+        if (milestones[idx].actualW !== null) {
+          const delta = (milestones[idx].actualW - milestones[idx].targetW).toFixed(1);
+          if (delta < -1.0) {
+            deltaCell.innerHTML = `<span class="text-apple-orange font-bold font-mono text-xs sm:text-base">${delta}kg</span>`;
+            statusCell.innerHTML = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-orange/15 text-apple-orange">감량 가속</span>';
+          } else if (delta <= 0.4) {
+            deltaCell.innerHTML = `<span class="text-apple-green font-bold font-mono text-xs sm:text-base">${delta > 0 ? '+'+delta : delta}kg</span>`;
+            statusCell.innerHTML = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-green/15 text-apple-green">목표 궤도</span>';
+          } else if (delta <= 1.0) {
+            deltaCell.innerHTML = `<span class="text-apple-orange font-bold font-mono text-xs sm:text-base">+${delta}kg</span>`;
+            statusCell.innerHTML = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-orange/15 text-apple-orange">진행 지연</span>';
+          } else {
+            deltaCell.innerHTML = `<span class="text-apple-red font-bold font-mono text-xs sm:text-base">+${delta}kg</span>`;
+            statusCell.innerHTML = '<span class="px-2.5 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-red/15 text-apple-red">조정 필요</span>';
+          }
+        } else {
+          deltaCell.innerHTML = '<span class="text-apple-label font-mono text-xs sm:text-sm">-</span>';
+          statusCell.innerHTML = '<span class="px-2 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-apple-card text-apple-label">대기</span>';
+        }
+      }
+
+      renderTrajectoryGraph();
+      renderTopSummary();
+    }
+
+    function onActualWaistChange(idx, val) {
+      const num = parseFloat(val);
+      milestones[idx].actualWaist = isNaN(num) ? null : num;
+    }
+
+    function onActualFatChange(idx, val) {
+      const num = parseFloat(val);
+      milestones[idx].actualFat = isNaN(num) ? null : num;
+    }
+
+    function onActualSmmChange(idx, val) {
+      const num = parseFloat(val);
+      milestones[idx].actualSmm = isNaN(num) ? null : num;
+    }
+
+    function resetMilestoneTracker() {
+      milestones.forEach((m, idx) => {
+        if (idx > 0) {
+          m.actualW = null;
+          m.actualWaist = null;
+          m.actualFat = null;
+          m.actualSmm = null;
+        }
+      });
+      renderMilestoneTable();
+      renderTopSummary();
+    }
+
+    // App Initialization
+    window.onload = function() {
+      onTimeSliderChange();
+      
+      // Explicitly initialize active selection with workoutBlock to sync indicator, dial, and card border perfectly
+      const initialBlock = routineBlocks.find(b => b.id === selectedBlockId) || routineBlocks[2];
+      selectRoutineBlock(initialBlock);
+
+      renderTimelineTable();
+      renderExercisesList();
+      renderDietChecklist();
+      renderInventoryList();
+      renderMilestoneTable();
+      renderTopSummary();
+    };
+  </script>
+</body>
+</html>
