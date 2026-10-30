@@ -1,0 +1,17 @@
+{
+  "name": "MyPT - 건강 & 루틴 플래닝 대시보드",
+  "short_name": "MyPT",
+  "description": "저녁 루틴, 운동 프로그램, 식단 및 11주 목표 플래닝 대시보드",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#161618",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
