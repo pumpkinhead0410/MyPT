@@ -29,7 +29,7 @@
 ## 실행과 검증
 
 - 참고 — `npm run typecheck`(`tsc -b`)로 TypeScript strict 타입 검사를 실행합니다.
-- 참고 — `npm test`(`node --test src/**/*.test.ts`)로 도메인 계산, 스토리지 스키마 검증, Vite SSR 컴포넌트 렌더링 테스트 26건을 실행합니다.
+- 참고 — `npm test`(`node --test src/**/*.test.ts`)로 도메인 계산, 스토리지 스키마 검증, Vite SSR 컴포넌트 렌더링 테스트 28건을 실행합니다.
 - 참고 — `npm run build`(`vite build`)로 `dist/` 프로덕션 번들을 생성하며, 상세 검증 결과는 [검증 리포트](evidence/verification-report.md)에 기록되어 있습니다.
 
 ## 변경 이력
