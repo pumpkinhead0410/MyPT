@@ -29,10 +29,11 @@
 ## 실행과 검증
 
 - 참고 — `npm run typecheck`(`tsc -b`)로 TypeScript strict 타입 검사를 실행합니다.
-- 참고 — `npm test`(`node --test src/**/*.test.ts`)로 도메인 계산, 스토리지 스키마 검증, Vite SSR 컴포넌트 렌더링 테스트 26건을 실행합니다.
+- 참고 — `npm test`(`node --test src/**/*.test.ts`)로 도메인 계산, 스토리지 스키마 검증, Vite SSR 컴포넌트 렌더링 테스트 28건을 실행합니다.
 - 참고 — `npm run build`(`vite build`)로 `dist/` 프로덕션 번들을 생성하며, 상세 검증 결과는 [검증 리포트](evidence/verification-report.md)에 기록되어 있습니다.
 
 ## 변경 이력
 
 - 참고 — 2026-10-29: 프로젝트 개요, 기준 파일 결함 5건, 탭별 고도화 범위와 재개 경로를 작성했습니다.
 - 참고 — 2026-10-30: Phase 1~5 모듈형 웹앱 구현 및 자동화 검증 완료 상태를 반영했습니다.
+- 참고 — 2026-10-30: EasyDocs-agent 봇 연동을 통한 자동 PR 생성 워크플로를 검증했습니다.
