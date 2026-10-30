@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1c1c1e"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="236" fill="none" stroke="#2c2c2e" stroke-width="3" stroke-opacity="0.4"/>
+  
+  <!-- Outer Ring: Evening Routine & Move (#fa114f) -->
+  <circle cx="256" cy="256" r="176" fill="none" stroke="#fa114f" stroke-opacity="0.18" stroke-width="32"/>
+  <circle cx="256" cy="256" r="176" fill="none" stroke="#fa114f" stroke-width="32" stroke-linecap="round" stroke-dasharray="1106" stroke-dashoffset="240" transform="rotate(-90 256 256)" filter="url(#glow)"/>
+
+  <!-- Middle Ring: Workout & Exercise (#30d158) -->
+  <circle cx="256" cy="256" r="132" fill="none" stroke="#30d158" stroke-opacity="0.18" stroke-width="32"/>
+  <circle cx="256" cy="256" r="132" fill="none" stroke="#30d158" stroke-width="32" stroke-linecap="round" stroke-dasharray="829" stroke-dashoffset="180" transform="rotate(-90 256 256)" filter="url(#glow)"/>
+
+  <!-- Inner Ring: Sleep, Diet & Stand (#64d2ff) -->
+  <circle cx="256" cy="256" r="88" fill="none" stroke="#64d2ff" stroke-opacity="0.18" stroke-width="32"/>
+  <circle cx="256" cy="256" r="88" fill="none" stroke="#64d2ff" stroke-width="32" stroke-linecap="round" stroke-dasharray="553" stroke-dashoffset="110" transform="rotate(-90 256 256)" filter="url(#glow)"/>
+</svg>
